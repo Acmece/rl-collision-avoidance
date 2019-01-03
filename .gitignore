@@ -4,3 +4,4 @@ env.py
 model/__pycache__/*
 policy/
 model/*.pyc
+test.py

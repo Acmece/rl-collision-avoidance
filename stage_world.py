@@ -6,15 +6,18 @@ import random
 import cv2
 import numpy as np
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from rosgraph_msgs.msg import Clock
 from std_srvs.srv import Empty
 
+
 class StageWorld():
-    def __init__(self, beam_num):
-        rospy.init_node('StageEnv', anonymous=None)
+    def __init__(self, beam_num, index):
+        self.index = index
+        node_name = 'StageEnv_' + str(index)
+        rospy.init_node(node_name, anonymous=None)
 
         self.beam_mum = beam_num
         self.laser_cb_num = 0
@@ -52,31 +55,45 @@ class StageWorld():
         self.stop_counter = 0
 
         # -----------Publisher and Subscriber-------------
-        self.cmd_vel = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+        cmd_vel_topic = 'robot_' + str(index) + '/cmd_vel'
+        self.cmd_vel = rospy.Publisher(cmd_vel_topic, Twist, queue_size=10)
 
-        self.object_state_sub = rospy.Subscriber('base_pose_ground_truth', Odometry, self.ground_truth_callback)
-        self.laser_sub = rospy.Subscriber('base_scan', LaserScan, self.laser_scan_callback)
-        self.odom_sub = rospy.Subscriber('odom', Odometry, self.odometry_callback)
+        cmd_pose_topic = 'robot_' + str(index) + '/cmd_pose'
+        self.cmd_pose = rospy.Publisher(cmd_pose_topic, Pose, queue_size=10)
+
+        object_state_topic = 'robot_' + str(index) + '/base_pose_ground_truth'
+        self.object_state_sub = rospy.Subscriber(object_state_topic, Odometry, self.ground_truth_callback)
+
+        laser_topic = 'robot_' + str(index) + '/base_scan'
+
+        self.laser_sub = rospy.Subscriber(laser_topic, LaserScan, self.laser_scan_callback)
+
+        odom_topic = 'robot_' + str(index) + '/odom'
+        self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odometry_callback)
+
+
         self.sim_clock = rospy.Subscriber('clock', Clock, self.sim_clock_callback)
 
         # -----------Service-------------------
         self.reset_stage = rospy.ServiceProxy('reset_positions', Empty)
 
+
+
+
+
+
         # rospy.spin()
         # rospy.sleep(1)
 
         # # Wait until the first callback
+
         while self.scan is None:
             pass
+
         rospy.sleep(1.)
         # # What function to call when you ctrl + c
         # rospy.on_shutdown(self.shutdown)
 
-    def shutdown(self):
-        # stop turtlebot
-        rospy.loginfo("Stop Moving")
-        self.cmd_vel.publish(Twist())
-        rospy.sleep(1)
 
     def ground_truth_callback(self, GT_odometry):
         Quaternious = GT_odometry.pose.pose.orientation
@@ -111,8 +128,8 @@ class StageWorld():
 
     def get_laser_observation(self):
         scan = copy.deepcopy(self.scan)
-        scan[np.isnan(scan)] = 5.6  # range_max:5.6
-        scan[np.isinf(scan)] = 5.6
+        scan[np.isnan(scan)] = 6.0
+        scan[np.isinf(scan)] = 6.0
         raw_beam_num = len(scan)
         sparse_beam_num = self.beam_mum
         step = float(raw_beam_num) / sparse_beam_num
@@ -127,8 +144,8 @@ class StageWorld():
             sparse_scan_right.append(scan[int(index)])
             index -= step
         scan_sparse = np.concatenate((sparse_scan_left, sparse_scan_right[::-1]), axis=0)
-        return scan_sparse / 5.6 - 0.5    # need to be figure out
-        # return self.scan_param
+        return scan_sparse / 6.0 - 0.5
+
 
     def get_self_speed(self):
         return self.speed
@@ -154,55 +171,29 @@ class StageWorld():
         self.start_time = time.time()
         rospy.sleep(0.5)
 
+
     def generate_goal_point(self):
-        x = random.uniform(-(self.map_size[0] / 2 - self.goal_size), self.map_size[0] / 2 - self.goal_size)
-        y = random.uniform(-(self.map_size[1] / 2 - self.goal_size), self.map_size[1] / 2 - self.goal_size)
+        radians = 2 * np.pi / 12 * self.index + np.pi
+        x = 12 * np.cos(radians)
+        y = 12 * np.sin(radians)
         self.goal_point = [x, y]
-        while not self.goal_point_check() and not rospy.is_shutdown():
-            x = random.uniform(-(self.map_size[0] / 2 - self.goal_size), self.map_size[0] / 2 - self.goal_size)
-            y = random.uniform(-(self.map_size[1] / 2 - self.goal_size), self.map_size[1] / 2 - self.goal_size)
-            self.goal_point = [x, y]
         self.pre_distance = np.sqrt(x ** 2 + y ** 2)
         self.distance = copy.deepcopy(self.pre_distance)
-
-    # attribute: pre_distance, distance, goal_point
-
-    def goal_point_check(self):
-        goal_x = self.goal_point[0]
-        goal_y = self.goal_point[1]
-        pass_flag = True
-        x_pixel = int(goal_x * self.R2P[0] + self.map_origin[0])
-        y_pixel = int(goal_y * self.R2P[1] + self.map_origin[1])
-        window_size = int(self.robot_size / 2 * np.amax(self.R2P))
-        for x in xrange(np.amax([0, x_pixel - window_size]), np.amin([self.map_pixel[0] - 1, x_pixel + window_size])):
-            for y in xrange(np.amax([0, y_pixel - window_size]),
-                            np.amin([self.map_pixel[1] - 1, y_pixel + window_size])):
-                if self.map[self.map_pixel[1] - y - 1, x] == 1:
-                    pass_flag = False
-                    break
-            if not pass_flag:
-                break
-        if abs(goal_x) < 2. and abs(goal_y) < 2.:
-            pass_flag = False
-        return pass_flag
 
 
     def get_reward_and_terminate(self, t):
         terminate = False
-        reset = False
         laser_scan = self.get_laser_observation()
         laser_min = np.amin(laser_scan)
         [x, y, theta] = self.get_self_stateGT()
         [v, w] = self.get_self_speedGT()
         self.pre_distance = copy.deepcopy(self.distance)
         self.distance = np.sqrt((self.goal_point[0] - x) ** 2 + (self.goal_point[1] - y) ** 2)
-        alpha = np.arctan2(self.goal_point[1] - y, self.goal_point[0] - x) - theta
 
-        # reward = v * np.cos(w) - 0.01
-        reward = (self.pre_distance - self.distance) * np.cos(w) - 0.01
-        # reward = -0.5 * 0.2
+        reward = (self.pre_distance - self.distance) * 2.5 - 0.01
         result = 0
-        if v == 0.0 and t > 10 and laser_min < 0.4 / 5.6 - 0.5:
+
+        if v == 0.0 and t > 10 and laser_min < 0.4 / 6.0 - 0.5:
             self.stop_counter += 1
         else:
             self.stop_counter = 0
@@ -210,25 +201,23 @@ class StageWorld():
         if self.distance < self.goal_size:
             reward = 5.
             terminate = True
-            reset = True
             print 'Reach the Goal'
             result = 3
         else:
-            if self.stop_counter == 2 and t <= 200:
+            if self.stop_counter == 3 and t <= 400:
                 reward = -5.
                 terminate = True
-                reset = True
                 print 'Crash'
                 result = 2
-            elif t > 200:
+            elif t > 400:
                 terminate = True
-                reset = True
                 print 'Time Out'
                 result = 1
 
         return reward, terminate, result
 
-    def control(self, action):
+
+    def control_vel(self, action):
         move_cmd = Twist()
         move_cmd.linear.x = action[0]
         move_cmd.linear.y = 0.
@@ -239,52 +228,30 @@ class StageWorld():
         self.cmd_vel.publish(move_cmd)
 
 
+    def control_pose(self, pose):
+        pose_cmd = Pose()
+        pose_cmd.position.x = pose[0]
+        pose_cmd.position.y = pose[1]
+        pose_cmd.position.z = 0
+        pose_cmd.orientation.x = 0
+        pose_cmd.orientation.y = 0
+        pose_cmd.orientation.z = 0
+        pose_cmd.orientation.w = 1
+        self.cmd_pose.publish(pose_cmd)
 
 
-    def render_map(self, path):
-        [x, y, theta] = self.get_self_stateGT()
-        self.reset_map(path)
-        self.map = self.draw_point([x, y], self.robot_size, self.robot_value,
-                                  self.map, self.map_pixel, self.map_origin, self.R2P)
-        return self.map
 
-    def reset_map(self, path): # path = [[0, 0], env.goal_point]
-        self.map = copy.deepcopy(self.raw_map)
-        goal_point = path[-1]
-        self.map = self.draw_point(goal_point, self.goal_size, self.goal_value,
-                                  self.map, self.map_pixel, self.map_origin, self.R2P)
-        return self.map
 
-    def draw_point(self, point, size, value, map_img, map_pixel, map_origin, R2P):
-        # x range
-        if not isinstance(size, np.ndarray):
-            x_range = [np.amax([int((point[0] - size / 2) * R2P[0]) + map_origin[0], 0]),
-                       np.amin([int((point[0] + size / 2) * R2P[0]) + map_origin[0],
-                                map_pixel[0] - 1])]
-
-            y_range = [np.amax([int((point[1] - size / 2) * R2P[1]) + map_origin[1], 0]),
-                       np.amin([int((point[1] + size / 2) * R2P[1]) + map_origin[1],
-                                map_pixel[1] - 1])]
-        else:
-            x_range = [np.amax([int((point[0] - size[0] / 2) * R2P[0]) + map_origin[0], 0]),
-                       np.amin([int((point[0] + size[0] / 2) * R2P[0]) + map_origin[0],
-                                map_pixel[0] - 1])]
-
-            y_range = [np.amax([int((point[1] - size[1] / 2) * R2P[1]) + map_origin[1], 0]),
-                       np.amin([int((point[1] + size[1] / 2) * R2P[1]) + map_origin[1],
-                                map_pixel[1] - 1])]
-
-        for x in xrange(x_range[0], x_range[1] + 1):
-            for y in xrange(y_range[0], y_range[1] + 1):
-                # if map_img[map_pixel[1] - y - 1, x] < value:
-                map_img[map_pixel[1] - y - 1, x] = value
-        return map_img
 
 
 
 
 if __name__ == '__main__':
-    env = StageWorld(40)
+    # env_list = []
+    # for i in range(12):
+    #     env = StageWorld(40, index=i)
+    #     env_list.append(i)
+
     # while not rospy.is_shutdown():
     #     speed = env.get_self_speedGT()
     #     state = env.get_self_stateGT()
@@ -294,10 +261,63 @@ if __name__ == '__main__':
     #
     #     sim_time = env.get_sim_time()
     #     print 'sim time {}'.format(sim_time)
-    env.reset_world()
-    a = np.asarray([0.4, np.pi/7])
-    env.control(a)
-    print 'out'
+
+
+    # env.reset_world()
+    # a = np.asarray([0.4, np.pi/7])
+    # for _ in range(1000):
+    #     for env in env_list:
+    #         env.control(a)
+    #         # rospy.sleep(0.1)
+    # print 'out'
+
+
+
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    action = None
+
+    env = StageWorld(512, index=rank)
+    if rank == 0:
+        # env.reset_world()
+        a = np.repeat(np.asarray([0.4, np.pi / 7])[np.newaxis], 12, axis=0)
+    else:
+        a = None
+
+    env.generate_goal_point()
+    print '{} and {}'.format(rank, env.goal_point)
+
+
+
+
+
+    # a = np.asarray([0.4, np.pi / 7])
+
+    # for i in range(400):
+    #
+    #     stateGT = env.get_self_stateGT()
+    #     send_data = stateGT
+    #     recv_data = comm.gather(send_data, root=0)
+    #     if rank ==0:
+    #         print recv_data
+    #         if i == 100:
+    #             pose = np.asarray([6,6])
+    #             env.control_pose(pose)
+    #         if i == 200:
+    #             pose = np.asarray([0,0])
+    #             env.control_pose(pose)
+    #         if i == 300:
+    #             pose = np.asarray([-6, -6])
+    #             env.control_pose(pose)
+    #
+    #
+    #     action = comm.scatter(a, root=0)
+    #     env.control_vel(action)
+    #     rospy.sleep(0.001)
+
 
 
 

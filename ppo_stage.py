@@ -5,6 +5,7 @@ import rospy
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+from mpi4py import MPI
 
 from torch.optim import Adam
 from torch.autograd import Variable
@@ -46,7 +47,8 @@ ACT_SIZE = 2
 
 
 
-def run( env, policy, policy_path, action_bound, optimizer):
+def run(comm, env, policy, policy_path, action_bound, optimizer):
+    exit()
 
     rate = rospy.Rate(5)
     s1 = env.get_laser_observation()
@@ -54,18 +56,15 @@ def run( env, policy, policy_path, action_bound, optimizer):
 
     buff = []
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    im = ax.imshow(env.map, aspect='auto', cmap='hot', vmin=0., vmax=1.5)
-    plt.show(block=False)
-
     for i in range(MAX_EPISODES):
-        env.reset_world()
+        if env.index == 0:
+            env.reset_world()
         env.generate_goal_point()
-        print('Target: (%.4f, %.4f)' % (env.goal_point[0], env.goal_point[1]))
+        print 'Goal: (%.4f, %.4f)' % (env.goal_point[0], env.goal_point[1])
         terminal = False
         ep_reward = 0
         j = 0
+
 
         while not terminal and not rospy.is_shutdown():
             s1 = env.get_laser_observation()
@@ -80,27 +79,34 @@ def run( env, policy, policy_path, action_bound, optimizer):
             speed1 = Variable(torch.from_numpy(speed1[np.newaxis])).float().cuda()
             state1 = [s__1, goal1, speed1]
 
-            map_img = env.render_map([[0, 0], env.goal_point])
 
+            #######################################################################
             r, terminal, result = env.get_reward_and_terminate(j)
             ep_reward += r
 
             if j > 0:
-                buff.append((state, a[0], r, state1, terminal, logprob, v))
+                buff.append((state, real_action[0], r, state1, terminal, logprob, v))
             j += 1
             state = state1
 
-            v, a, logprob, mean = policy(s__1, goal1, speed1)
-            v, a, logprob = v.data.cpu().numpy(), a.data.cpu().numpy(), logprob.data.cpu().numpy()
+            if env.index == 0:
+                v, a, logprob, mean = policy(s__1, goal1, speed1)
+                v, a, logprob = v.data.cpu().numpy(), a.data.cpu().numpy(), logprob.data.cpu().numpy()
             # a = np.asarray([0.4, np.pi/7])
-            scaled_action = np.clip(a[0], a_min=action_bound[0], a_max=action_bound[1])
-            # print scaled_action
-            env.control(scaled_action)
+                scaled_action = np.clip(a[0], a_min=action_bound[0], a_max=action_bound[1])
+            else:
+                v = None
+                scaled_action = None
+                logprob = None
 
-            # plot
-            if j == 1:
-                im.set_array(map_img)
-                fig.canvas.draw()
+            real_action = comm.scatter(scaled_action, root=0)
+
+            ########################################################################
+
+
+            env.control_vel(scaled_action)
+
+
             # v:(1,1)   a:(1,2)   logprob:(1,1)  s__1:(1,3,512)  goal1:(1,2)  speed1:(1,2)
             if len(buff) > HORIZON-1:
                 # state_batch = [e[0] for e in buff]  # attention : list
@@ -157,6 +163,9 @@ def run( env, policy, policy_path, action_bound, optimizer):
 
             rate.sleep()
 
+
+
+
         # print '| Reward: %.2f' % ep_reward, " | Episode:", i, \
         #     '| Qmax: %.4f' % (ep_ave_max_q / float(j)), \
         #     " | LoopTime: %.4f" % (np.mean(loop_time_buf)), " | Step:", j - 1, '\n'
@@ -169,28 +178,40 @@ def run( env, policy, policy_path, action_bound, optimizer):
 
 
 if __name__ == '__main__':
-    # torch.manual_seed(1)
-    # np.random.seed(1)
-    policy_path = 'policy'
-    # policy = MLPPolicy(obs_size, act_size)
-    policy = CNNPolicy(frames=stack_frame, action_space=2)
-    policy.cuda()
-    opt = Adam(policy.parameters(), lr=lr)
-    mse = nn.MSELoss()
 
-    if not os.path.exists(policy_path):
-        os.makedirs(policy_path)
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
 
-    file = policy_path + '/policy.pth'
-    if os.path.exists(file):
-        state_dict = torch.load(file)
-        policy.load_state_dict(state_dict)
-
-    env = StageWorld(512)
+    env = StageWorld(512, index=rank)
     reward = None
     action_bound = [[0, -np.pi / 3], [1.2, np.pi / 3]]
 
+    # torch.manual_seed(1)
+    # np.random.seed(1)
+    if rank == 0:
+        policy_path = 'policy'
+        # policy = MLPPolicy(obs_size, act_size)
+        policy = CNNPolicy(frames=stack_frame, action_space=2)
+        policy.cuda()
+        opt = Adam(policy.parameters(), lr=lr)
+        mse = nn.MSELoss()
+
+        if not os.path.exists(policy_path):
+            os.makedirs(policy_path)
+
+        file = policy_path + '/policy.pth'
+        if os.path.exists(file):
+            state_dict = torch.load(file)
+            policy.load_state_dict(state_dict)
+    else:
+        policy = None
+        policy_path = None
+        opt = None
+
+
+
     try:
-        run(env=env, policy=policy, policy_path=policy_path, action_bound=action_bound, optimizer=opt)
+        run(comm=comm, env=env, policy=policy, policy_path=policy_path, action_bound=action_bound, optimizer=opt)
     except KeyboardInterrupt:
         pass

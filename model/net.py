@@ -45,7 +45,6 @@ class CNNPolicy(nn.Module):
 
         a = F.relu(self.act_fea_cv1(x))
         a = F.relu(self.act_fea_cv2(a))
-
         a = a.view(a.shape[0], -1)
         a = F.relu(self.act_fc1(a))
 

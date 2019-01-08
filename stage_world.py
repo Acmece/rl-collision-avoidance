@@ -116,7 +116,7 @@ class StageWorld():
     def laser_scan_callback(self, scan):
         self.scan_param = [scan.angle_min, scan.angle_max, scan.angle_increment, scan.time_increment,
                            scan.scan_time, scan.range_min, scan.range_max]
-        self.scan = np.array(scan.ranges)  # ndarray shape(660,)
+        self.scan = np.array(scan.ranges)
         self.laser_cb_num += 1
 
 
@@ -202,7 +202,7 @@ class StageWorld():
         reward = (self.pre_distance - self.distance) * 2.5 - 0.01
         result = 0
 
-        if v == 0.0 and t > 10 and laser_min < 0.4 / 6.0 - 0.5:
+        if v < 0.05 and t > 10 and laser_min < 0.4 / 6.0 - 0.5:
             self.stop_counter += 1
         else:
             self.stop_counter = 0
@@ -213,7 +213,7 @@ class StageWorld():
             print 'Reach the Goal'
             result = 3
         else:
-            if self.stop_counter == 3 and t <= 400:
+            if self.stop_counter == 2 and t <= 400:
                 reward = -5.
                 terminate = True
                 print 'Crash'
@@ -222,6 +222,11 @@ class StageWorld():
                 terminate = True
                 print 'Time Out'
                 result = 1
+        if terminate == True:
+            radians = 2 * np.pi / 12 * self.index
+            x = 12 * np.cos(radians)
+            y = 12 * np.sin(radians)
+            self.control_pose([x,y])
 
         return reward, terminate, result
 

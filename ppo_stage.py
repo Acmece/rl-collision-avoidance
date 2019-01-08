@@ -48,13 +48,14 @@ ACT_SIZE = 2
 
 
 def run(comm, env, policy, policy_path, action_bound, optimizer):
-    exit()
 
     rate = rospy.Rate(5)
     s1 = env.get_laser_observation()
     s_1 = np.stack((s1, s1, s1), axis=1)
 
     buff = []
+
+
 
     for i in range(MAX_EPISODES):
         if env.index == 0:
@@ -74,9 +75,9 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             goal1 = np.asarray(env.get_local_goal())
             speed1 = np.asarray(env.get_self_speed())
 
-            s__1 = Variable(torch.from_numpy(s__1[np.newaxis])).float().cuda()
-            goal1 = Variable(torch.from_numpy(goal1[np.newaxis])).float().cuda()
-            speed1 = Variable(torch.from_numpy(speed1[np.newaxis])).float().cuda()
+            # s__1 = Variable(torch.from_numpy(s__1[np.newaxis])).float().cuda()
+            # goal1 = Variable(torch.from_numpy(goal1[np.newaxis])).float().cuda()
+            # speed1 = Variable(torch.from_numpy(speed1[np.newaxis])).float().cuda()
             state1 = [s__1, goal1, speed1]
 
 
@@ -84,82 +85,108 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             r, terminal, result = env.get_reward_and_terminate(j)
             ep_reward += r
 
+            # for MPI
+            state1_list = comm.gather(state1, root=0)
+            r_list = comm.gather(r, root=0)
+            terminal_list = comm.gather(terminal, root=0)
+
             if j > 0:
-                buff.append((state, real_action[0], r, state1, terminal, logprob, v))
+                if env.index == 0:
+                    buff.append((state_list, real_action[0], r_list, state1_list, terminal_list, logprob, v))
             j += 1
-            state = state1
+            state_list = state1_list
 
             if env.index == 0:
+                # v, a, logprob, mean = policy(s__1, goal1, speed1)
+                # v, a, logprob = v.data.cpu().numpy(), a.data.cpu().numpy(), logprob.data.cpu().numpy()
+
+                # s__1 = state_list[:][0]
+                # print s__1
+                # exit()
+
+                s__1 = Variable(torch.from_numpy(s__1[np.newaxis])).float().cuda()
+
+                goal1 = state_list[:,1]
+                goal1 = Variable(torch.from_numpy(goal1[np.newaxis])).float().cuda()
+
+                speed1 = state_list[:,2]
+                speed1 = Variable(torch.from_numpy(speed1[np.newaxis])).float().cuda()
+
                 v, a, logprob, mean = policy(s__1, goal1, speed1)
                 v, a, logprob = v.data.cpu().numpy(), a.data.cpu().numpy(), logprob.data.cpu().numpy()
-            # a = np.asarray([0.4, np.pi/7])
                 scaled_action = np.clip(a[0], a_min=action_bound[0], a_max=action_bound[1])
             else:
                 v = None
                 scaled_action = None
                 logprob = None
+            if env.index == 0:
+                print v
+                print a
+                print scaled_action
+                print logprob
+            exit()
 
             real_action = comm.scatter(scaled_action, root=0)
 
             ########################################################################
 
 
-            env.control_vel(scaled_action)
+            env.control_vel(real_action)
 
 
             # v:(1,1)   a:(1,2)   logprob:(1,1)  s__1:(1,3,512)  goal1:(1,2)  speed1:(1,2)
-            if len(buff) > HORIZON-1:
-                # state_batch = [e[0] for e in buff]  # attention : list
-                # a_batch = np.asarray(e[1] for e in buff)
-                # r_batch = np.asarray(e[2] for e in buff)
-                # state1_batch = [e[3] for e in buff]  # attention : list
-                # d_batch = np.asarray(e[4] for e in buff)
-                # l_batch = np.asarray(e[5] for e in buff)
-                # v_batch = np.asarray(e[6] for e in buff)
-                s_batch, goal_batch, speed_batch, a_batch, r_batch, state1_batch, d_batch, l_batch, \
-                v_batch = [], [], [], [], [], [], [], [], []
-                for e in buff:
-                    s_batch.append(e[0][0].data.cpu().numpy())
-                    goal_batch.append(e[0][1].data.cpu().numpy())
-                    speed_batch.append(e[0][2].data.cpu().numpy())
-
-                    a_batch.append(e[1])
-                    r_batch.append(e[2])
-                    state1_batch.append(e[3])
-                    d_batch.append(e[4])
-                    l_batch.append(e[5])
-                    v_batch.append(e[6])
-
-                s_batch = np.asarray(s_batch) # horizon * 1 * frames * obs_size
-                goal_batch = np.asarray(goal_batch) # horizon * 1 * 2
-                speed_batch = np.asarray(speed_batch) # horiozn * 1 * 2 before reshape
-                a_batch = np.asarray(a_batch) # horizon * act_size
-                r_batch = np.asarray(r_batch) # horizon
-                d_batch = np.asarray(d_batch) # horizon
-                l_batch = np.asarray(l_batch) # horizon * 1 * 1
-                v_batch = np.asarray(v_batch) # horizon * 1 * 1
-
-
-                # print s_batch.shape
-                # print goal_batch.shape
-                # print speed_batch.shape
-                # print r_batch.shape
-                # print d_batch.shape
-                # print l_batch.shape
-                # print v_batch.shape
-
-
-                t_batch, advs_batch = generate_train_data(rewards=r_batch, gamma=0.99, values=v_batch,
-                                                          last_value=v, dones=d_batch, lam=LAMDA)
-                # t_batch : horizon   advs_batch : horiozn
-
-                memory = (s_batch, goal_batch, speed_batch, a_batch, l_batch, t_batch, v_batch, r_batch, advs_batch)
-
-                ppo_update(policy=policy, optimizer=optimizer, batch_size=BATCH_SIZE, memory=memory,
-                           epoch=EPOCH, coeff_entropy=COEFF_ENTROPY, clip_value=CLIP_VALUE, num_step=HORIZON,
-                           num_env=NUM_ENV, frames=LASER_HIST,
-                           obs_size=OBS_SIZE, act_size=ACT_SIZE)
-                buff = []
+            # if len(buff) > HORIZON-1:
+            #     # state_batch = [e[0] for e in buff]  # attention : list
+            #     # a_batch = np.asarray(e[1] for e in buff)
+            #     # r_batch = np.asarray(e[2] for e in buff)
+            #     # state1_batch = [e[3] for e in buff]  # attention : list
+            #     # d_batch = np.asarray(e[4] for e in buff)
+            #     # l_batch = np.asarray(e[5] for e in buff)
+            #     # v_batch = np.asarray(e[6] for e in buff)
+            #     s_batch, goal_batch, speed_batch, a_batch, r_batch, state1_batch, d_batch, l_batch, \
+            #     v_batch = [], [], [], [], [], [], [], [], []
+            #     for e in buff:
+            #         s_batch.append(e[0][0].data.cpu().numpy())
+            #         goal_batch.append(e[0][1].data.cpu().numpy())
+            #         speed_batch.append(e[0][2].data.cpu().numpy())
+            #
+            #         a_batch.append(e[1])
+            #         r_batch.append(e[2])
+            #         state1_batch.append(e[3])
+            #         d_batch.append(e[4])
+            #         l_batch.append(e[5])
+            #         v_batch.append(e[6])
+            #
+            #     s_batch = np.asarray(s_batch) # horizon * 1 * frames * obs_size
+            #     goal_batch = np.asarray(goal_batch) # horizon * 1 * 2
+            #     speed_batch = np.asarray(speed_batch) # horiozn * 1 * 2 before reshape
+            #     a_batch = np.asarray(a_batch) # horizon * act_size
+            #     r_batch = np.asarray(r_batch) # horizon
+            #     d_batch = np.asarray(d_batch) # horizon
+            #     l_batch = np.asarray(l_batch) # horizon * 1 * 1
+            #     v_batch = np.asarray(v_batch) # horizon * 1 * 1
+            #
+            #
+            #     # print s_batch.shape
+            #     # print goal_batch.shape
+            #     # print speed_batch.shape
+            #     # print r_batch.shape
+            #     # print d_batch.shape
+            #     # print l_batch.shape
+            #     # print v_batch.shape
+            #
+            #
+            #     t_batch, advs_batch = generate_train_data(rewards=r_batch, gamma=0.99, values=v_batch,
+            #                                               last_value=v, dones=d_batch, lam=LAMDA)
+            #     # t_batch : horizon   advs_batch : horiozn
+            #
+            #     memory = (s_batch, goal_batch, speed_batch, a_batch, l_batch, t_batch, v_batch, r_batch, advs_batch)
+            #
+            #     ppo_update(policy=policy, optimizer=optimizer, batch_size=BATCH_SIZE, memory=memory,
+            #                epoch=EPOCH, coeff_entropy=COEFF_ENTROPY, clip_value=CLIP_VALUE, num_step=HORIZON,
+            #                num_env=NUM_ENV, frames=LASER_HIST,
+            #                obs_size=OBS_SIZE, act_size=ACT_SIZE)
+            #     buff = []
 
             rate.sleep()
 
@@ -170,7 +197,7 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
         #     '| Qmax: %.4f' % (ep_ave_max_q / float(j)), \
         #     " | LoopTime: %.4f" % (np.mean(loop_time_buf)), " | Step:", j - 1, '\n'
         print 'Reward: %.2f ' % ep_reward, 'Episode: ', i
-        if i % 100 == 0:
+        if i % 100 == 0 and env.index == 0:
             torch.save(policy.state_dict(), policy_path + '/policy.pth')
 
 
@@ -208,7 +235,6 @@ if __name__ == '__main__':
         policy = None
         policy_path = None
         opt = None
-
 
 
     try:

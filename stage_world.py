@@ -86,9 +86,18 @@ class StageWorld():
         # rospy.sleep(1)
 
         # # Wait until the first callback
-
-        while self.scan is None:
+        self.speed = None
+        self.state = None
+        self.speed_GT = None
+        self.state_GT = None
+        while self.scan is None or self.speed is None or self.state is None\
+                or self.speed_GT is None or self.state_GT is None:
             pass
+
+
+        # while self.scan is None:
+        #     pass
+
 
         rospy.sleep(1.)
         # # What function to call when you ctrl + c
@@ -281,42 +290,41 @@ if __name__ == '__main__':
     action = None
 
     env = StageWorld(512, index=rank)
-    if rank == 0:
-        # env.reset_world()
-        a = np.repeat(np.asarray([0.4, np.pi / 7])[np.newaxis], 12, axis=0)
-    else:
-        a = None
-
-    env.generate_goal_point()
-    print '{} and {}'.format(rank, env.goal_point)
-
-
-
-
-
-    # a = np.asarray([0.4, np.pi / 7])
-
-    # for i in range(400):
+    # if rank == 0:
+    #     # env.reset_world()
+    #     a = np.repeat(np.asarray([0.4, np.pi / 7])[np.newaxis], 12, axis=0)
+    # else:
+    #     a = None
     #
-    #     stateGT = env.get_self_stateGT()
-    #     send_data = stateGT
-    #     recv_data = comm.gather(send_data, root=0)
-    #     if rank ==0:
-    #         print recv_data
-    #         if i == 100:
-    #             pose = np.asarray([6,6])
-    #             env.control_pose(pose)
-    #         if i == 200:
-    #             pose = np.asarray([0,0])
-    #             env.control_pose(pose)
-    #         if i == 300:
-    #             pose = np.asarray([-6, -6])
-    #             env.control_pose(pose)
-    #
-    #
-    #     action = comm.scatter(a, root=0)
-    #     env.control_vel(action)
-    #     rospy.sleep(0.001)
+    # env.generate_goal_point()
+    # print '{} and {}'.format(rank, env.goal_point)
+
+    a = np.repeat(np.asarray([0.4, np.pi / 7])[np.newaxis], 12, axis=0)
+
+    for i in range(400):
+
+        stateGT = env.get_self_stateGT()
+
+        send_data = stateGT
+        recv_data = comm.gather(send_data, root=0)
+        if rank ==0:
+            print recv_data
+            print len(recv_data)
+            print len(recv_data)
+            if i == 100:
+                pose = np.asarray([6,6])
+                env.control_pose(pose)
+            if i == 200:
+                pose = np.asarray([0,0])
+                env.control_pose(pose)
+            if i == 300:
+                pose = np.asarray([-6, -6])
+                env.control_pose(pose)
+
+
+        action = comm.scatter(a, root=0)
+        env.control_vel(action)
+        rospy.sleep(0.001)
 
 
 

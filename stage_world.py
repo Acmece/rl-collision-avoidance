@@ -11,11 +11,13 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from rosgraph_msgs.msg import Clock
 from std_srvs.srv import Empty
+from std_msgs.msg import Int8
 
 
 class StageWorld():
-    def __init__(self, beam_num, index):
+    def __init__(self, beam_num, index, num_env):
         self.index = index
+        self.num_env = num_env
         node_name = 'StageEnv_' + str(index)
         rospy.init_node(node_name, anonymous=None)
 
@@ -70,6 +72,9 @@ class StageWorld():
 
         odom_topic = 'robot_' + str(index) + '/odom'
         self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odometry_callback)
+
+        crash_topic = 'robot_' + str(index) + '/is_crashed'
+        self.check_crash = rospy.Subscriber(crash_topic, Int8, self.crash_callback)
 
 
         self.sim_clock = rospy.Subscriber('clock', Clock, self.sim_clock_callback)
@@ -129,6 +134,9 @@ class StageWorld():
     def sim_clock_callback(self, clock):
         self.sim_time = clock.clock.secs + clock.clock.nsecs / 1000000000.
 
+    def crash_callback(self, flag):
+        self.is_crashed = flag.data
+
     def get_self_stateGT(self):
         return self.state_GT
 
@@ -162,6 +170,9 @@ class StageWorld():
     def get_self_state(self):
         return self.state
 
+    def get_crash_state(self):
+        return self.is_crashed
+
     def get_sim_time(self):
         return self.sim_time
 
@@ -182,9 +193,14 @@ class StageWorld():
 
 
     def generate_goal_point(self):
-        radians = 2 * np.pi / 12 * self.index + np.pi
-        x = 12 * np.cos(radians)
-        y = 12 * np.sin(radians)
+        # radians = 2 * np.pi / self.num_env * self.index + np.pi
+        # x = 12 * np.cos(radians)
+        # y = 12 * np.sin(radians)
+        # self.goal_point = [x, y]
+        # self.pre_distance = np.sqrt(x ** 2 + y ** 2)
+        # self.distance = copy.deepcopy(self.pre_distance)
+
+        [x, y] = self.generate_random_goal()
         self.goal_point = [x, y]
         self.pre_distance = np.sqrt(x ** 2 + y ** 2)
         self.distance = copy.deepcopy(self.pre_distance)
@@ -198,35 +214,64 @@ class StageWorld():
         [v, w] = self.get_self_speedGT()
         self.pre_distance = copy.deepcopy(self.distance)
         self.distance = np.sqrt((self.goal_point[0] - x) ** 2 + (self.goal_point[1] - y) ** 2)
-
-        reward = (self.pre_distance - self.distance) * 2.5 - 0.01
+        reward_g = (self.pre_distance - self.distance) * 2.5
+        reward_c = 0
+        reward_w = 0
         result = 0
 
-        if v < 0.05 and t > 10 and laser_min < 0.4 / 6.0 - 0.5:
-            self.stop_counter += 1
-        else:
-            self.stop_counter = 0
+        # if v < 0.05 and t > 10 and laser_min < 0.4 / 6.0 - 0.5:
+        #     self.stop_counter += 1
+        # else:
+        #     self.stop_counter = 0
+        is_crash = self.get_crash_state()
 
         if self.distance < self.goal_size:
-            reward = 5.
             terminate = True
             print 'Reach the Goal'
             result = 3
-        else:
-            if self.stop_counter == 2 and t <= 400:
-                reward = -5.
-                terminate = True
-                print 'Crash'
-                result = 2
-            elif t > 400:
-                terminate = True
-                print 'Time Out'
-                result = 1
+            reward_g = 15
+
+        if is_crash == 1:
+            terminate = True
+            print 'Env {} Crashed'.format(self.index)
+            result = 2
+            reward_c = -15.
+
+        if np.abs(w) > np.pi / 0.7:
+            print 'Env {} execute too large angular speed'.format(self.index)
+            reward_w = -0.1 * np.abs(w)
+
+        if t > 399:
+            terminate = True
+            print 'Env {} Time out'.format(self.index)
+            result = 1
+
+        reward = reward_g + reward_c + reward_w
+
+        # if t > 400:
+        #     terminate = True
+        #     print 'Env {} Time out'.format(self.index)
+        #     result = 1
+        # elif is_crash == 1:
+        #     terminate = True
+        #     print 'Env {} Crashed'.format(self.index)
+        #     result = 2
+        #     reward = -15.
+        # elif self.distance < self.goal_size:
+        #     terminate = True
+        #     print 'Reach the Goal'
+        #     result = 3
+        #     reward = 15.
+        # else:
+        #     pass
+
         if terminate == True:
-            radians = 2 * np.pi / 12 * self.index
-            x = 12 * np.cos(radians)
-            y = 12 * np.sin(radians)
-            self.control_pose([x,y])
+            # radians = 2 * np.pi / self.num_env * self.index
+            # x = 12 * np.cos(radians)
+            # y = 12 * np.sin(radians)
+            pose = self.generate_random_pose()
+            self.control_pose(pose)
+            print 'reset pose'
 
         return reward, terminate, result
 
@@ -253,6 +298,31 @@ class StageWorld():
         pose_cmd.orientation.w = 1
         self.cmd_pose.publish(pose_cmd)
 
+    def generate_random_pose(self):
+        x = np.random.uniform(-13, 13)
+        y = np.random.uniform(-13, 13)
+        dis = np.sqrt(x**2 + y**2)
+        while dis > 14 and not rospy.is_shutdown():
+            x = np.random.uniform(-13, 13)
+            y = np.random.uniform(-13, 13)
+            dis = np.sqrt(x ** 2 + y ** 2)
+
+        pose = [x, y]
+        return pose
+
+    def generate_random_goal(self):
+        [x_robot, y_robot, theta] = self.get_self_stateGT()
+        x = np.random.uniform(-13, 13)
+        y = np.random.uniform(-13, 13)
+        dis_origin = np.sqrt(x ** 2 + y ** 2)
+        dis_goal = np.sqrt((x - x_robot) ** 2 + (y - y_robot) ** 2)
+        while (dis_origin > 13 or dis_goal > 20 or dis_goal < 10) and not rospy.is_shutdown():
+            x = np.random.uniform(-13, 13)
+            y = np.random.uniform(-13, 13)
+            dis_origin = np.sqrt(x ** 2 + y ** 2)
+            dis_goal = np.sqrt((x - x_robot) ** 2 + (y - y_robot) ** 2)
+
+        return [x, y]
 
 
 

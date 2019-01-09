@@ -10,7 +10,7 @@ define sicklaser ranger
     pose [ 0 0 0.1 0 ]
     fov 120
     range [ 0.0 6.0 ]
-    samples 660
+    samples 512
   )
   color "random"
   block( 
@@ -36,13 +36,13 @@ define floorplan model
   gripper_return 0
   fiducial_return 0
   ranger_return 1
-  obstacle_return 0
+  obstacle_return 1
 )
 
 floorplan
 (
   name "blank"
-  size [40.000 40.000 0.800]
+  size [30.000 30.000 0.800]
   pose [0.000 0.000 0.000 0.000]
   bitmap "rink.png"
 )
@@ -103,15 +103,28 @@ define agent position
   )
 
 
-agent( pose [12.00 0.00 0.00 180.00])
-agent( pose [10.39 6.00 0.00 210.00])
-agent( pose [6.00 10.39 0.00 240.00])
-agent( pose [-0.00 12.00 0.00 270.00])
-agent( pose [-6.00 10.39 0.00 300.00])
-agent( pose [-10.39 6.00 0.00 330.00])
-agent( pose [-12.00 -0.00 0.00 360.00])
-agent( pose [-10.39 -6.00 0.00 390.00])
-agent( pose [-6.00 -10.39 0.00 420.00])
-agent( pose [0.00 -12.00 0.00 450.00])
-agent( pose [6.00 -10.39 0.00 480.00])
-agent( pose [10.39 -6.00 0.00 510.00])
+agent( pose [10.00 0.00 0.00 180.00])
+agent( pose [9.66 2.59 0.00 195.00])
+agent( pose [8.66 5.00 0.00 210.00])
+agent( pose [7.07 7.07 0.00 225.00])
+agent( pose [5.00 8.66 0.00 240.00])
+agent( pose [2.59 9.66 0.00 255.00])
+agent( pose [-0.00 10.00 0.00 270.00])
+agent( pose [-2.59 9.66 0.00 285.00])
+agent( pose [-5.00 8.66 0.00 300.00])
+agent( pose [-7.07 7.07 0.00 315.00])
+agent( pose [-8.66 5.00 0.00 330.00])
+agent( pose [-9.66 2.59 0.00 345.00])
+agent( pose [-10.00 -0.00 0.00 360.00])
+agent( pose [-9.66 -2.59 0.00 375.00])
+agent( pose [-8.66 -5.00 0.00 390.00])
+agent( pose [-7.07 -7.07 0.00 405.00])
+agent( pose [-5.00 -8.66 0.00 420.00])
+agent( pose [-2.59 -9.66 0.00 435.00])
+agent( pose [0.00 -10.00 0.00 450.00])
+agent( pose [2.59 -9.66 0.00 465.00])
+agent( pose [5.00 -8.66 0.00 480.00])
+agent( pose [7.07 -7.07 0.00 495.00])
+agent( pose [8.66 -5.00 0.00 510.00])
+agent( pose [9.66 -2.59 0.00 525.00])
+

@@ -32,14 +32,14 @@ is_render = False
 MAX_EPISODES = 5000
 LASER_BEAM = 512
 LASER_HIST = 3
-HORIZON = 128
+HORIZON = 512
 GAMMA = 0.99
 LAMDA = 0.99
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 EPOCH = 2
 COEFF_ENTROPY = 1e-4
 CLIP_VALUE = 0.2
-NUM_ENV = 12
+NUM_ENV = 24
 OBS_SIZE = 512
 ACT_SIZE = 2
 
@@ -89,8 +89,7 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
 
 
             if j > 0 and env.index == 0:
-                if env.index == 0:
-                    buff.append((state_list, scaled_action, r_list, state1_list, terminal_list, logprob, v))
+                buff.append((state_list, scaled_action, r_list, state1_list, terminal_list, logprob, v))
             j += 1
             state_list = state1_list
 
@@ -195,10 +194,11 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
 
 
 
-        print 'Env {}, Episode {}, Reward {}, finished'.format(env.index, id, ep_reward)
+        print 'Env {}, Episode {}, setp {}, Reward {}, finished'.format(env.index, id, j-1, ep_reward)
 
         if id % 10 == 0 and env.index == 0:
             torch.save(policy.state_dict(), policy_path + '/policy.pth')
+            print '######## model saved ##########'
 
 
 
@@ -210,9 +210,9 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     size = comm.Get_size()
 
-    env = StageWorld(512, index=rank)
+    env = StageWorld(512, index=rank, num_env=NUM_ENV)
     reward = None
-    action_bound = [[0, -np.pi / 3], [1.2, np.pi / 3]]
+    action_bound = [[0, -np.pi / 2], [1.2, np.pi / 2]]
 
     # torch.manual_seed(1)
     # np.random.seed(1)

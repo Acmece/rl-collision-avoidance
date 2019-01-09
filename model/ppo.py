@@ -37,22 +37,24 @@ def calculate_returns(rewards, dones, last_value, values, gamma=0.99):
 
 def generate_train_data(rewards, gamma, values, last_value, dones, lam):
     num_step = rewards.shape[0]
+    num_env = rewards.shape[1]
     values = list(values)
     values.append(last_value)
-    values = np.asarray(values).reshape((num_step+1,))
+    values = np.asarray(values).reshape((num_step+1,num_env))
 
-    targets = np.zeros((num_step))
-    gae = 0.
+    targets = np.zeros((num_step, num_env))
+    gae = np.zeros((num_env,))
+
     for t in range(num_step - 1, -1, -1):
-        delta = rewards[t] + gamma * values[t + 1] * (1 - dones[t]) - values[t]
-        gae = delta + gamma * lam * (1 - dones[t]) * gae
+        delta = rewards[t, :] + gamma * values[t + 1, :] * (1 - dones[t, :]) - values[t, :]
+        gae = delta + gamma * lam * (1 - dones[t, :]) * gae
 
-        targets[t] = gae + values[t]
+        targets[t, :] = gae + values[t, :]
 
-    advs = targets - values[:-1]
+    advs = targets - values[:-1, :]
 
-    # print advs.shape  # horizon,
-    # print targets.shape # horizon
+    # print advs.shape  # horizon * 12
+    # print targets.shape # horizon * 12
 
     return targets, advs
 
@@ -60,24 +62,24 @@ def generate_train_data(rewards, gamma, values, last_value, dones, lam):
 
 def ppo_update(policy, optimizer, batch_size, memory, epoch,
                coeff_entropy=0.02, clip_value=0.2,
-               num_step=2048, num_env=2, frames=1, obs_size=24, act_size=4):
+               num_step=2048, num_env=12, frames=1, obs_size=24, act_size=4):
     obss, goals, speeds, actions, logprobs, targets, values, rewards, advs = memory
 
     advs = (advs - advs.mean()) / advs.std()
 
+    # print(targets.shape) # horizon * 12
+    # print(values.shape) # horizon * 12 * 1
+    # print(actions.shape) # horizon * 12 * act_size
+    # print(logprobs.shape) # horizon * 12 * 1
+    # print(advs.shape) # horizon * 12
 
-    # print(targets.shape) # horizon
-    # print(values.shape) # horizon * 1 * 1
-    # print(actions.shape) # horizon * act_size
-    # print(logprobs.shape) # horizon * 1 * 1
-    # print(advs.shape) # horizon
-    obss = obss.reshape((num_step, frames, obs_size))
-    goals = goals.reshape((num_step, 2))
-    speeds = speeds.reshape((num_step, 2))
-    actions = actions.reshape(num_step, act_size)
-    logprobs = logprobs.reshape(num_step, 1)
-    advs = advs.reshape(num_step, 1)
-    targets = targets.reshape(num_step, 1)
+    obss = obss.reshape((num_step*num_env, frames, obs_size))
+    goals = goals.reshape((num_step*num_env, 2))
+    speeds = speeds.reshape((num_step*num_env, 2))
+    actions = actions.reshape(num_step*num_env, act_size)
+    logprobs = logprobs.reshape(num_step*num_env, 1)
+    advs = advs.reshape(num_step*num_env, 1)
+    targets = targets.reshape(num_step*num_env, 1)
 
     for update in range(epoch):
         sampler = BatchSampler(SubsetRandomSampler(list(range(advs.shape[0]))), batch_size=batch_size,

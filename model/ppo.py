@@ -81,6 +81,31 @@ def generate_action(env, state_list, policy, action_bound):
 
     return v, a, logprob, scaled_action
 
+def generate_action_no_sampling(env, state_list, policy, action_bound):
+    if env.index == 0:
+        s_list, goal_list, speed_list = [], [], []
+        for i in state_list:
+            s_list.append(i[0])
+            goal_list.append(i[1])
+            speed_list.append(i[2])
+
+        s_list = np.asarray(s_list)
+        goal_list = np.asarray(goal_list)
+        speed_list = np.asarray(speed_list)
+
+        s_list = Variable(torch.from_numpy(s_list)).float().cuda()
+        goal_list = Variable(torch.from_numpy(goal_list)).float().cuda()
+        speed_list = Variable(torch.from_numpy(speed_list)).float().cuda()
+
+        _, _, _, mean = policy(s_list, goal_list, speed_list)
+        mean = mean.data.cpu().numpy()
+        scaled_action = np.clip(mean, a_min=action_bound[0], a_max=action_bound[1])
+    else:
+        mean = None
+        scaled_action = None
+
+    return mean, scaled_action
+
 
 
 def calculate_returns(rewards, dones, last_value, values, gamma=0.99):

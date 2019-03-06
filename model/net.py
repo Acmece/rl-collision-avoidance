@@ -39,10 +39,6 @@ class CNNPolicy(nn.Module):
             returns value estimation, action, log_action_prob
         """
         # action
-        # print x.shape # num_env * frames * obs_size
-        # print goal.shape # num_env * 1 * 2
-        # print speed.shape # num_env * 1 * 2
-
         a = F.relu(self.act_fea_cv1(x))
         a = F.relu(self.act_fea_cv2(a))
         a = a.view(a.shape[0], -1)
@@ -145,7 +141,4 @@ if __name__ == '__main__':
     observation = Variable(torch.randn(2, 3))
     v, action, logprob, mean = net.forward(observation)
     print(v)
-    print(action)
-    print(logprob)
-    print(mean)
-    print(net.logstd)
+

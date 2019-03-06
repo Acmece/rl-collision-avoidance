@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="stage_ros" name="stageros" type="stageros" args="-g $(find stage_ros)/world/willow-erratic.world"/>
+  <test test-name="cmdpose_tests" pkg="stage_ros" type="cmdpose_tests.py" name="cmdpose_tests"/>
+</launch>

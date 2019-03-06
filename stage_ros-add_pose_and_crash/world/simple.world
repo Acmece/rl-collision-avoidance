@@ -1,0 +1,131 @@
+show_clock 0
+show_clock_interval 10000
+resolution 0.2
+threads 4
+speedup 1
+
+
+define sicklaser ranger
+(
+  sensor(
+    pose [ 0 0 0.1 0 ]
+    fov 180
+    range [ 0.0 6.0 ]
+    samples 512
+  )
+  color "random"
+  block( 
+    points 4
+    point[0] [0 0]
+    point[1] [0 1]
+    point[2] [1 1]
+    point[3] [1 0]
+    z [0 0.21]
+  )
+)
+
+
+define floorplan model
+(
+  color "gray30"
+  boundary 1
+
+  gui_nose 0
+  gui_grid 0
+  gui_move 1
+  gui_outline 0
+  gripper_return 0
+  fiducial_return 0
+  ranger_return 1
+  obstacle_return 1
+)
+
+floorplan
+(
+  name "blank"
+  size [20.000 20.000 0.800]
+  pose [0.000 0.000 0.000 0.000]
+  bitmap "rink.png"
+)
+
+
+
+window
+(
+  size [1550 1550]
+  
+# Camera options 
+  scale 35          
+  center [0  0]
+  rotate [ 0.000  0.000 ]
+
+
+# GUI options
+  show_data 1
+  show_flags 1
+  show_blocks 1
+  show_clock 1
+  show_footprints 1
+  show_grid 1
+  show_trailarrows 0
+  show_trailrise 0
+  show_trailfast 0
+  show_occupancy 0
+
+)
+
+
+
+
+define agent position
+(
+  # actual size
+  size [0.44 0.38 0.22] # sizes from MobileRobots' web site
+
+  localization "gps"
+  # the pioneer's center of rotation is offset from its center of area
+  origin [0 0 0 0]
+
+  # draw a nose on the robot so we can see which way it points
+  gui_nose 1
+
+  color "random"
+  drive "diff"		 	# Differential steering model.
+  obstacle_return 1           	# Can hit things.
+  ranger_return 0.5            	# reflects sonar beams
+  blob_return 1               	# Seen by blobfinders  
+  fiducial_return 1           	# Seen as "1" fiducial finders
+  sicklaser(
+	pose [ 0 0 0 0 ] 
+  )
+  
+  # [ xmin xmax ymin ymax zmin zmax amin amax ]				
+  # velocity_bounds [-0.5 0.5 0 0 0 0 -90.0 90.0 ]					
+  # acceleration_bounds [-0.5 0.5 0 0 0 0 -90 90.0 ]
+  )
+
+agent( pose [8.00 0.00 0.00 180.00])
+agent( pose [7.73 2.07 0.00 195.00])
+agent( pose [6.93 4.00 0.00 210.00])
+agent( pose [5.66 5.66 0.00 225.00])
+agent( pose [4.00 6.93 0.00 240.00])
+agent( pose [2.07 7.73 0.00 255.00])
+agent( pose [-0.00 8.00 0.00 270.00])
+agent( pose [-2.07 7.73 0.00 285.00])
+agent( pose [-4.00 6.93 0.00 300.00])
+agent( pose [-5.66 5.66 0.00 315.00])
+agent( pose [-6.93 4.00 0.00 330.00])
+agent( pose [-7.73 2.07 0.00 345.00])
+agent( pose [-8.00 -0.00 0.00 360.00])
+agent( pose [-7.73 -2.07 0.00 375.00])
+agent( pose [-6.93 -4.00 0.00 390.00])
+agent( pose [-5.66 -5.66 0.00 405.00])
+agent( pose [-4.00 -6.93 0.00 420.00])
+agent( pose [-2.07 -7.73 0.00 435.00])
+agent( pose [0.00 -8.00 0.00 450.00])
+agent( pose [2.07 -7.73 0.00 465.00])
+agent( pose [4.00 -6.93 0.00 480.00])
+agent( pose [5.66 -5.66 0.00 495.00])
+agent( pose [6.93 -4.00 0.00 510.00])
+agent( pose [7.73 -2.07 0.00 525.00])
+

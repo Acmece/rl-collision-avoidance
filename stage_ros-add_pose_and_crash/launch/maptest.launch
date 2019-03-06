@@ -1,0 +1,199 @@
+<launch>
+  <arg name="world_file" default="$(find stage_ros_add_pose_and_crash)/world/simple.world" />
+  <node name="stageros" type="stageros" pkg="stage_ros_add_pose_and_crash" args="-g $(arg world_file)">
+    <remap from="/robot_0/base_pose_ground_truth" to="/robot_24/base_pose_ground_truth" />
+    <remap from="/robot_0/base_scan" to="/robot_24/base_scan" />
+    <remap from="/robot_0/cmd_pose" to="/robot_24/cmd_pose" />
+    <remap from="/robot_0/cmd_pose_stamped" to="/robot_24/cmd_pose_stamped" />
+    <remap from="/robot_0/cmd_vel" to="/robot_24/cmd_vel" />
+    <remap from="/robot_0/is_crashed" to="/robot_24/is_crashed" />
+    <remap from="/robot_0/odom" to="/robot_24/odom" />
+    
+    <remap from="/robot_1/base_pose_ground_truth" to="/robot_25/base_pose_ground_truth" />
+    <remap from="/robot_1/base_scan" to="/robot_25/base_scan" />
+    <remap from="/robot_1/cmd_pose" to="/robot_25/cmd_pose" />
+    <remap from="/robot_1/cmd_pose_stamped" to="/robot_25/cmd_pose_stamped" />
+    <remap from="/robot_1/cmd_vel" to="/robot_25/cmd_vel" />
+    <remap from="/robot_1/is_crashed" to="/robot_25/is_crashed" />
+    <remap from="/robot_1/odom" to="/robot_25/odom" />
+    
+    <remap from="/robot_2/base_pose_ground_truth" to="/robot_26/base_pose_ground_truth" />
+    <remap from="/robot_2/base_scan" to="/robot_26/base_scan" />
+    <remap from="/robot_2/cmd_pose" to="/robot_26/cmd_pose" />
+    <remap from="/robot_2/cmd_pose_stamped" to="/robot_26/cmd_pose_stamped" />
+    <remap from="/robot_2/cmd_vel" to="/robot_26/cmd_vel" />
+    <remap from="/robot_2/is_crashed" to="/robot_26/is_crashed" />
+    <remap from="/robot_2/odom" to="/robot_26/odom" />
+    
+    <remap from="/robot_3/base_pose_ground_truth" to="/robot_27/base_pose_ground_truth" />
+    <remap from="/robot_3/base_scan" to="/robot_27/base_scan" />
+    <remap from="/robot_3/cmd_pose" to="/robot_27/cmd_pose" />
+    <remap from="/robot_3/cmd_pose_stamped" to="/robot_27/cmd_pose_stamped" />
+    <remap from="/robot_3/cmd_vel" to="/robot_27/cmd_vel" />
+    <remap from="/robot_3/is_crashed" to="/robot_27/is_crashed" />
+    <remap from="/robot_3/odom" to="/robot_27/odom" />
+    
+    <remap from="/robot_4/base_pose_ground_truth" to="/robot_28/base_pose_ground_truth" />
+    <remap from="/robot_4/base_scan" to="/robot_28/base_scan" />
+    <remap from="/robot_4/cmd_pose" to="/robot_28/cmd_pose" />
+    <remap from="/robot_4/cmd_pose_stamped" to="/robot_28/cmd_pose_stamped" />
+    <remap from="/robot_4/cmd_vel" to="/robot_28/cmd_vel" />
+    <remap from="/robot_4/is_crashed" to="/robot_28/is_crashed" />
+    <remap from="/robot_4/odom" to="/robot_28/odom" />
+    
+    <remap from="/robot_5/base_pose_ground_truth" to="/robot_29/base_pose_ground_truth" />
+    <remap from="/robot_5/base_scan" to="/robot_29/base_scan" />
+    <remap from="/robot_5/cmd_pose" to="/robot_29/cmd_pose" />
+    <remap from="/robot_5/cmd_pose_stamped" to="/robot_29/cmd_pose_stamped" />
+    <remap from="/robot_5/cmd_vel" to="/robot_29/cmd_vel" />
+    <remap from="/robot_5/is_crashed" to="/robot_29/is_crashed" />
+    <remap from="/robot_5/odom" to="/robot_29/odom" />
+    
+    <remap from="/robot_6/base_pose_ground_truth" to="/robot_30/base_pose_ground_truth" />
+    <remap from="/robot_6/base_scan" to="/robot_30/base_scan" />
+    <remap from="/robot_6/cmd_pose" to="/robot_30/cmd_pose" />
+    <remap from="/robot_6/cmd_pose_stamped" to="/robot_30/cmd_pose_stamped" />
+    <remap from="/robot_6/cmd_vel" to="/robot_30/cmd_vel" />
+    <remap from="/robot_6/is_crashed" to="/robot_30/is_crashed" />
+    <remap from="/robot_6/odom" to="/robot_30/odom" />
+    
+    <remap from="/robot_7/base_pose_ground_truth" to="/robot_31/base_pose_ground_truth" />
+    <remap from="/robot_7/base_scan" to="/robot_31/base_scan" />
+    <remap from="/robot_7/cmd_pose" to="/robot_31/cmd_pose" />
+    <remap from="/robot_7/cmd_pose_stamped" to="/robot_31/cmd_pose_stamped" />
+    <remap from="/robot_7/cmd_vel" to="/robot_31/cmd_vel" />
+    <remap from="/robot_7/is_crashed" to="/robot_31/is_crashed" />
+    <remap from="/robot_7/odom" to="/robot_31/odom" />
+    
+    <remap from="/robot_8/base_pose_ground_truth" to="/robot_32/base_pose_ground_truth" />
+    <remap from="/robot_8/base_scan" to="/robot_32/base_scan" />
+    <remap from="/robot_8/cmd_pose" to="/robot_32/cmd_pose" />
+    <remap from="/robot_8/cmd_pose_stamped" to="/robot_32/cmd_pose_stamped" />
+    <remap from="/robot_8/cmd_vel" to="/robot_32/cmd_vel" />
+    <remap from="/robot_8/is_crashed" to="/robot_32/is_crashed" />
+    <remap from="/robot_8/odom" to="/robot_32/odom" />
+    
+    <remap from="/robot_9/base_pose_ground_truth" to="/robot_33/base_pose_ground_truth" />
+    <remap from="/robot_9/base_scan" to="/robot_33/base_scan" />
+    <remap from="/robot_9/cmd_pose" to="/robot_33/cmd_pose" />
+    <remap from="/robot_9/cmd_pose_stamped" to="/robot_33/cmd_pose_stamped" />
+    <remap from="/robot_9/cmd_vel" to="/robot_33/cmd_vel" />
+    <remap from="/robot_9/is_crashed" to="/robot_33/is_crashed" />
+    <remap from="/robot_9/odom" to="/robot_33/odom" />
+    
+    <remap from="/robot_10/base_pose_ground_truth" to="/robot_34/base_pose_ground_truth" />
+    <remap from="/robot_10/base_scan" to="/robot_34/base_scan" />
+    <remap from="/robot_10/cmd_pose" to="/robot_34/cmd_pose" />
+    <remap from="/robot_10/cmd_pose_stamped" to="/robot_34/cmd_pose_stamped" />
+    <remap from="/robot_10/cmd_vel" to="/robot_34/cmd_vel" />
+    <remap from="/robot_10/is_crashed" to="/robot_34/is_crashed" />
+    <remap from="/robot_10/odom" to="/robot_34/odom" />
+    
+    <remap from="/robot_11/base_pose_ground_truth" to="/robot_35/base_pose_ground_truth" />
+    <remap from="/robot_11/base_scan" to="/robot_35/base_scan" />
+    <remap from="/robot_11/cmd_pose" to="/robot_35/cmd_pose" />
+    <remap from="/robot_11/cmd_pose_stamped" to="/robot_35/cmd_pose_stamped" />
+    <remap from="/robot_11/cmd_vel" to="/robot_35/cmd_vel" />
+    <remap from="/robot_11/is_crashed" to="/robot_35/is_crashed" />
+    <remap from="/robot_11/odom" to="/robot_35/odom" />
+    
+    <remap from="/robot_12/base_pose_ground_truth" to="/robot_36/base_pose_ground_truth" />
+    <remap from="/robot_12/base_scan" to="/robot_36/base_scan" />
+    <remap from="/robot_12/cmd_pose" to="/robot_36/cmd_pose" />
+    <remap from="/robot_12/cmd_pose_stamped" to="/robot_36/cmd_pose_stamped" />
+    <remap from="/robot_12/cmd_vel" to="/robot_36/cmd_vel" />
+    <remap from="/robot_12/is_crashed" to="/robot_36/is_crashed" />
+    <remap from="/robot_12/odom" to="/robot_36/odom" />
+    
+    <remap from="/robot_13/base_pose_ground_truth" to="/robot_37/base_pose_ground_truth" />
+    <remap from="/robot_13/base_scan" to="/robot_37/base_scan" />
+    <remap from="/robot_13/cmd_pose" to="/robot_37/cmd_pose" />
+    <remap from="/robot_13/cmd_pose_stamped" to="/robot_37/cmd_pose_stamped" />
+    <remap from="/robot_13/cmd_vel" to="/robot_37/cmd_vel" />
+    <remap from="/robot_13/is_crashed" to="/robot_37/is_crashed" />
+    <remap from="/robot_13/odom" to="/robot_37/odom" />
+    
+    <remap from="/robot_14/base_pose_ground_truth" to="/robot_38/base_pose_ground_truth" />
+    <remap from="/robot_14/base_scan" to="/robot_38/base_scan" />
+    <remap from="/robot_14/cmd_pose" to="/robot_38/cmd_pose" />
+    <remap from="/robot_14/cmd_pose_stamped" to="/robot_38/cmd_pose_stamped" />
+    <remap from="/robot_14/cmd_vel" to="/robot_38/cmd_vel" />
+    <remap from="/robot_14/is_crashed" to="/robot_38/is_crashed" />
+    <remap from="/robot_14/odom" to="/robot_38/odom" />
+    
+    <remap from="/robot_15/base_pose_ground_truth" to="/robot_39/base_pose_ground_truth" />
+    <remap from="/robot_15/base_scan" to="/robot_39/base_scan" />
+    <remap from="/robot_15/cmd_pose" to="/robot_39/cmd_pose" />
+    <remap from="/robot_15/cmd_pose_stamped" to="/robot_39/cmd_pose_stamped" />
+    <remap from="/robot_15/cmd_vel" to="/robot_39/cmd_vel" />
+    <remap from="/robot_15/is_crashed" to="/robot_39/is_crashed" />
+    <remap from="/robot_15/odom" to="/robot_39/odom" />
+    
+    <remap from="/robot_16/base_pose_ground_truth" to="/robot_40/base_pose_ground_truth" />
+    <remap from="/robot_16/base_scan" to="/robot_40/base_scan" />
+    <remap from="/robot_16/cmd_pose" to="/robot_40/cmd_pose" />
+    <remap from="/robot_16/cmd_pose_stamped" to="/robot_40/cmd_pose_stamped" />
+    <remap from="/robot_16/cmd_vel" to="/robot_40/cmd_vel" />
+    <remap from="/robot_16/is_crashed" to="/robot_40/is_crashed" />
+    <remap from="/robot_16/odom" to="/robot_40/odom" />
+    
+    <remap from="/robot_17/base_pose_ground_truth" to="/robot_41/base_pose_ground_truth" />
+    <remap from="/robot_17/base_scan" to="/robot_41/base_scan" />
+    <remap from="/robot_17/cmd_pose" to="/robot_41/cmd_pose" />
+    <remap from="/robot_17/cmd_pose_stamped" to="/robot_41/cmd_pose_stamped" />
+    <remap from="/robot_17/cmd_vel" to="/robot_41/cmd_vel" />
+    <remap from="/robot_17/is_crashed" to="/robot_41/is_crashed" />
+    <remap from="/robot_17/odom" to="/robot_41/odom" />
+    
+    <remap from="/robot_18/base_pose_ground_truth" to="/robot_42/base_pose_ground_truth" />
+    <remap from="/robot_18/base_scan" to="/robot_42/base_scan" />
+    <remap from="/robot_18/cmd_pose" to="/robot_42/cmd_pose" />
+    <remap from="/robot_18/cmd_pose_stamped" to="/robot_42/cmd_pose_stamped" />
+    <remap from="/robot_18/cmd_vel" to="/robot_42/cmd_vel" />
+    <remap from="/robot_18/is_crashed" to="/robot_42/is_crashed" />
+    <remap from="/robot_18/odom" to="/robot_42/odom" />
+    
+    <remap from="/robot_19/base_pose_ground_truth" to="/robot_43/base_pose_ground_truth" />
+    <remap from="/robot_19/base_scan" to="/robot_43/base_scan" />
+    <remap from="/robot_19/cmd_pose" to="/robot_43/cmd_pose" />
+    <remap from="/robot_19/cmd_pose_stamped" to="/robot_43/cmd_pose_stamped" />
+    <remap from="/robot_19/cmd_vel" to="/robot_43/cmd_vel" />
+    <remap from="/robot_19/is_crashed" to="/robot_43/is_crashed" />
+    <remap from="/robot_19/odom" to="/robot_43/odom" />
+    
+    <remap from="/robot_20/base_pose_ground_truth" to="/robot_44/base_pose_ground_truth" />
+    <remap from="/robot_20/base_scan" to="/robot_44/base_scan" />
+    <remap from="/robot_20/cmd_pose" to="/robot_44/cmd_pose" />
+    <remap from="/robot_20/cmd_pose_stamped" to="/robot_44/cmd_pose_stamped" />
+    <remap from="/robot_20/cmd_vel" to="/robot_44/cmd_vel" />
+    <remap from="/robot_20/is_crashed" to="/robot_44/is_crashed" />
+    <remap from="/robot_20/odom" to="/robot_44/odom" />
+    
+    <remap from="/robot_21/base_pose_ground_truth" to="/robot_45/base_pose_ground_truth" />
+    <remap from="/robot_21/base_scan" to="/robot_45/base_scan" />
+    <remap from="/robot_21/cmd_pose" to="/robot_45/cmd_pose" />
+    <remap from="/robot_21/cmd_pose_stamped" to="/robot_45/cmd_pose_stamped" />
+    <remap from="/robot_21/cmd_vel" to="/robot_45/cmd_vel" />
+    <remap from="/robot_21/is_crashed" to="/robot_45/is_crashed" />
+    <remap from="/robot_21/odom" to="/robot_45/odom" />
+    
+    <remap from="/robot_22/base_pose_ground_truth" to="/robot_46/base_pose_ground_truth" />
+    <remap from="/robot_22/base_scan" to="/robot_46/base_scan" />
+    <remap from="/robot_22/cmd_pose" to="/robot_46/cmd_pose" />
+    <remap from="/robot_22/cmd_pose_stamped" to="/robot_46/cmd_pose_stamped" />
+    <remap from="/robot_22/cmd_vel" to="/robot_46/cmd_vel" />
+    <remap from="/robot_22/is_crashed" to="/robot_46/is_crashed" />
+    <remap from="/robot_22/odom" to="/robot_46/odom" />
+    
+    <remap from="/robot_23/base_pose_ground_truth" to="/robot_47/base_pose_ground_truth" />
+    <remap from="/robot_23/base_scan" to="/robot_47/base_scan" />
+    <remap from="/robot_23/cmd_pose" to="/robot_47/cmd_pose" />
+    <remap from="/robot_23/cmd_pose_stamped" to="/robot_47/cmd_pose_stamped" />
+    <remap from="/robot_23/cmd_vel" to="/robot_47/cmd_vel" />
+    <remap from="/robot_23/is_crashed" to="/robot_47/is_crashed" />
+    <remap from="/robot_23/odom" to="/robot_47/odom" />
+    
+  </node>
+  
+</launch>
+  

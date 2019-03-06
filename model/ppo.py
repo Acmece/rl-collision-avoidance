@@ -1,8 +1,86 @@
 import torch
+import logging
+import os
 from torch.autograd import Variable
 from torch.nn import functional as F
 import numpy as np
+import socket
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
+
+hostname = socket.gethostname()
+if not os.path.exists('./log/' + hostname):
+    os.makedirs('./log/' + hostname)
+ppo_file = './log/' + hostname + '/ppo.log'
+
+logger_ppo = logging.getLogger('loggerppo')
+logger_ppo.setLevel(logging.INFO)
+ppo_file_handler = logging.FileHandler(ppo_file, mode='a')
+ppo_file_handler.setLevel(logging.INFO)
+logger_ppo.addHandler(ppo_file_handler)
+
+
+def transform_buffer(buff):
+    s_batch, goal_batch, speed_batch, a_batch, r_batch, d_batch, l_batch, \
+    v_batch = [], [], [], [], [], [], [], []
+    s_temp, goal_temp, speed_temp = [], [], []
+
+    for e in buff:
+        for state in e[0]:
+            s_temp.append(state[0])
+            goal_temp.append(state[1])
+            speed_temp.append(state[2])
+        s_batch.append(s_temp)
+        goal_batch.append(goal_temp)
+        speed_batch.append(speed_temp)
+        s_temp = []
+        goal_temp = []
+        speed_temp = []
+
+        a_batch.append(e[1])
+        r_batch.append(e[2])
+        d_batch.append(e[3])
+        l_batch.append(e[4])
+        v_batch.append(e[5])
+
+    s_batch = np.asarray(s_batch)
+    goal_batch = np.asarray(goal_batch)
+    speed_batch = np.asarray(speed_batch)
+    a_batch = np.asarray(a_batch)
+    r_batch = np.asarray(r_batch)
+    d_batch = np.asarray(d_batch)
+    l_batch = np.asarray(l_batch)
+    v_batch = np.asarray(v_batch)
+
+    return s_batch, goal_batch, speed_batch, a_batch, r_batch, d_batch, l_batch, v_batch
+
+
+def generate_action(env, state_list, policy, action_bound):
+    if env.index == 0:
+        s_list, goal_list, speed_list = [], [], []
+        for i in state_list:
+            s_list.append(i[0])
+            goal_list.append(i[1])
+            speed_list.append(i[2])
+
+        s_list = np.asarray(s_list)
+        goal_list = np.asarray(goal_list)
+        speed_list = np.asarray(speed_list)
+
+        s_list = Variable(torch.from_numpy(s_list)).float().cuda()
+        goal_list = Variable(torch.from_numpy(goal_list)).float().cuda()
+        speed_list = Variable(torch.from_numpy(speed_list)).float().cuda()
+
+        v, a, logprob, mean = policy(s_list, goal_list, speed_list)
+        v, a, logprob = v.data.cpu().numpy(), a.data.cpu().numpy(), logprob.data.cpu().numpy()
+        scaled_action = np.clip(a, a_min=action_bound[0], a_max=action_bound[1])
+    else:
+        v = None
+        a = None
+        scaled_action = None
+        logprob = None
+
+    return v, a, logprob, scaled_action
+
 
 
 def calculate_returns(rewards, dones, last_value, values, gamma=0.99):
@@ -15,25 +93,6 @@ def calculate_returns(rewards, dones, last_value, values, gamma=0.99):
         returns[i] = gamma * returns[i+1] * dones[i] + rewards[i]
     return returns
 
-
-# def generate_train_data(rewards, gamma, values, last_value, dones, lam):
-#     num_step = rewards.shape[0]
-#     num_env = rewards.shape[1]
-#     values = list(values)
-#     values.append(last_value)
-#     values = np.asarray(values).reshape((-1, num_env))
-#
-#     targets = np.zeros((num_step, num_env))
-#     gae = np.zeros_like([num_env, ])
-#     for t in range(num_step - 1, -1, -1):
-#         delta = rewards[t, :] + gamma * values[t + 1, :] * (1 - dones[t, :]) - values[t, :]
-#         gae = delta + gamma * lam * (1 - dones[t, :]) * gae
-#
-#         targets[t, :] = gae + values[t, :]
-#
-#     advs = targets - values[:-1, :]
-#
-#     return targets, advs
 
 def generate_train_data(rewards, gamma, values, last_value, dones, lam):
     num_step = rewards.shape[0]
@@ -52,10 +111,6 @@ def generate_train_data(rewards, gamma, values, last_value, dones, lam):
         targets[t, :] = gae + values[t, :]
 
     advs = targets - values[:-1, :]
-
-    # print advs.shape  # horizon * 12
-    # print targets.shape # horizon * 12
-
     return targets, advs
 
 
@@ -66,12 +121,6 @@ def ppo_update(policy, optimizer, batch_size, memory, epoch,
     obss, goals, speeds, actions, logprobs, targets, values, rewards, advs = memory
 
     advs = (advs - advs.mean()) / advs.std()
-
-    # print(targets.shape) # horizon * 12
-    # print(values.shape) # horizon * 12 * 1
-    # print(actions.shape) # horizon * 12 * act_size
-    # print(logprobs.shape) # horizon * 12 * 1
-    # print(advs.shape) # horizon * 12
 
     obss = obss.reshape((num_step*num_env, frames, obs_size))
     goals = goals.reshape((num_step*num_env, 2))
@@ -97,9 +146,6 @@ def ppo_update(policy, optimizer, batch_size, memory, epoch,
 
             new_value, new_logprob, dist_entropy = policy.evaluate_actions(sampled_obs, sampled_goals, sampled_speeds, sampled_actions)
 
-            # print(dist_entropy.shape) # schalor
-
-
             sampled_logprobs = sampled_logprobs.view(-1, 1)
             ratio = torch.exp(new_logprob - sampled_logprobs)
 
@@ -111,133 +157,16 @@ def ppo_update(policy, optimizer, batch_size, memory, epoch,
             sampled_targets = sampled_targets.view(-1, 1)
             value_loss = F.mse_loss(new_value, sampled_targets)
 
-            loss = policy_loss + value_loss - coeff_entropy * dist_entropy
+            loss = policy_loss + 20 * value_loss - coeff_entropy * dist_entropy
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            info_p_loss, info_v_loss, info_entropy = float(policy_loss.detach().cpu().numpy()), \
+                                                     float(value_loss.detach().cpu().numpy()), float(
+                                                    dist_entropy.detach().cpu().numpy())
+            logger_ppo.info('{}, {}, {}'.format(info_p_loss, info_v_loss, info_entropy))
+
     print('update')
-    # print(value_loss.data, policy_loss.data, dist_entropy.data)
-    # return value_loss.data[0], policy_loss.data[0], dist_entropy.data[0]
 
-
-
-def generate_trajectory(workers, policy, max_step, agent_conns, obs_size=None,
-                        num_env=None, stack_frame=None,
-                        gamma=0.99, lam=0.99):
-    """generate a batch of examples using policy"""
-
-    nstep = 0
-    # obs = env.reset()
-    # obss = np.zeros([num_env, stack_frame, obs_size])
-    obss = []
-    targets = []
-    speeds = []
-    for work in workers:
-        obs, target, speed = work.first_state
-        obss.append(obs)
-        targets.append(target)
-        speeds.append(speed)
-
-    obss = np.asarray(obss)
-    goals = np.asarray(targets)
-    speeds = np.asarray(speeds)
-
-    done = False
-    total_obss, total_rewards, total_actions, total_logprobs, total_dones, \
-    total_values, total_goals, total_speeds = [], [], [], [], [], [], [], []
-    while not (nstep == max_step):
-        # if is_render:
-        #     env.render()
-
-        obss = Variable(torch.from_numpy(obss[np.newaxis])).float().cuda()
-        goals = Variable(torch.from_numpy(goals[np.newaxis])).float().cuda()
-        speeds = Variable(torch.from_numpy(speeds[np.newaxis])).float().cuda()
-
-        obss = obss.view(-1, stack_frame, obs_size)
-        goals = goals.view(-1, 1, 2)
-        speeds = speeds.view(-1, 1,  2)
-
-        value, action, logprob, mean = policy(obss, goals, speeds)
-        value, action, logprob = value.data.cpu().numpy(), action.data.cpu().numpy(), \
-                                 logprob.data.cpu().numpy()
-
-
-        # stack the result of env
-        for agent_conn, action_ in zip(agent_conns, action):
-            agent_conn.send(action_)
-
-
-        next_obss, next_goals, next_speeds, rewards, dones= [], [], [], [], []
-        for agent_conn in agent_conns:
-            state, reward, terminal, _ = agent_conn.recv()
-            obs, goal, speed = state
-            next_obss.append(obs)
-            next_goals.append(goal)
-            next_speeds.append(speed)
-            dones.append(terminal)
-            rewards.append(reward)
-#   need to do things here
-        total_actions.append(action)
-        total_values.append(value)
-        total_logprobs.append(logprob)
-        total_rewards.append(rewards)
-        total_dones.append(dones)
-
-        total_obss.append(obss.data.cpu().numpy())
-        total_goals.append(goals.data.cpu().numpy())
-        total_speeds.append(speeds.data.cpu().numpy())
-
-        obss = np.stack(next_obss)
-        goals = np.stack(next_goals)
-        speeds = np.stack(next_speeds)
-
-        nstep += 1
-
-    obss = Variable(torch.from_numpy(obss[np.newaxis])).float().cuda()
-    goals = Variable(torch.from_numpy(goals[np.newaxis])).float().cuda()
-    speeds = Variable(torch.from_numpy(speeds[np.newaxis])).float().cuda()
-
-    obss = obss.view(-1, stack_frame, obs_size)
-    targets = targets.view(-1, 1, 2)
-    speeds = speeds.view(-1, 1, 2)
-
-    assert obss.shape == (num_env, stack_frame, 24)
-    assert goals.shape == (num_env, 2)
-    assert speeds.shape == (num_env, 2)
-
-    value, _, _, _ = policy(obss, goals, speeds)
-    last_value = value.data.cpu().numpy()
-
-    total_obss = np.asarray(total_obss)
-    total_goals = np.asarray(total_goals)
-    total_speeds = np.asarray(total_speeds)
-
-    total_rewards = np.asarray(total_rewards)
-    total_logprobs = np.asarray(total_logprobs)
-    total_dones = np.asarray(total_dones)
-    total_values = np.asarray(total_values)
-    total_actions = np.asarray(total_actions)
-
-    # observations = np.asarray(observations)
-    # rewards = np.asarray(rewards)
-    # logprobs = np.asarray(logprobs)
-    # dones = np.asarray(dones)
-    # values = np.asarray(values)
-    # actions = np.asarray(actions)
-
-    # print('total_rewards {} '.format(total_rewards.shape))
-    # print('total_dones {} '.format(total_dones.shape))
-    # print('total_values {} '.format(total_values.shape))
-    # print('last value {} '.format(last_value.shape))
-
-    # total_returns = calculate_returns(total_rewards, total_dones, last_value, total_values) # (num_step+1) * num_env
-    # print('total returns {} '.format(total_returns.shape))
-    total_target, total_adv = generate_train_data(rewards=total_rewards, values=total_values,
-                                                  last_value=last_value, dones=total_dones,
-                                                  gamma=gamma, lam=lam)
-
-
-    # return total_obss, total_actions, total_logprobs, total_returns, total_values, total_rewards
-    return [total_obss, total_goals, total_speeds], total_actions, total_logprobs, total_target, total_values, total_rewards, total_adv
 
 

@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<package>
+  <name>stage_ros_add_pose_and_crash</name>
+  <version>1.7.5</version>
+  <description>This package provides ROS specific hooks for stage</description>
+
+  <maintainer email="william@osrfoundation.org">William Woodall</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/stage_ros</url>
+  <url type="repository">https://github.com/ros-simulation/stage_ros</url>
+  <url type="bugtracker">https://github.com/ros-simulation/stage_ros/issues</url>
+
+  <author email="gerky@osrfoundation.org">Brian Gerky</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>boost</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>rostest</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>stage</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>std_srvs</build_depend>
+  <build_depend>tf</build_depend>
+
+  <run_depend>boost</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>nav_msgs</run_depend>
+  <run_depend>roscpp</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>stage</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>std_srvs</run_depend>
+  <run_depend>tf</run_depend>
+
+  <test_depend>rospy</test_depend>
+</package>

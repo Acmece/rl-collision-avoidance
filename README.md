@@ -37,7 +37,7 @@ mpiexec -np 44 python ppo_stage2.py
 ## How to test
 
 ```
-rosrun stage_ros_add_pose_and_crash stageros worlds/stage2.world
+rosrun stage_ros_add_pose_and_crash stageros worlds/circle.world
 mpiexec -np 50 python circle_test.py
 ```
 

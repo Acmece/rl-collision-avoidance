@@ -41,5 +41,6 @@ rosrun stage_ros_add_pose_and_crash stageros worlds/circle.world
 mpiexec -np 50 python circle_test.py
 ```
 
-
+## Notice
+I am not the author of the paper and not in their group either. You may contact [Jia Pan](https://sites.google.com/site/panjia/) (jpan@cs.hku.hk) for the paper related issues.
 

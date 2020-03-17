@@ -42,5 +42,16 @@ mpiexec -np 50 python circle_test.py
 ```
 
 ## Notice
-I am not the author of the paper and not in their group either. You may contact [Jia Pan](https://sites.google.com/site/panjia/) (jpan@cs.hku.hk) for the paper related issues.
-
+I am not the author of the paper and not in their group either. You may contact [Jia Pan](https://sites.google.com/site/panjia/) (jpan@cs.hku.hk) for the paper related issues. 
+If you find it useful and use it in your project, please consider citing:
+```
+@misc{Tianyu2018,
+	author = {Tianyu Liu},
+	title = {Robot Collision Avoidance via Deep Reinforcement Learning},
+	year = {2018},
+	publisher = {GitHub},
+	journal = {GitHub repository},
+	howpublished = {\url{https://github.com/Acmece/rl-collision-avoidance.git}},
+	commit = {7bc682403cb9a327377481be1f110debc16babbd}
+}
+```

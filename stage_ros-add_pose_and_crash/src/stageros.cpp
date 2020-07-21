@@ -62,9 +62,11 @@
 #define CAMERA_INFO "camera_info"
 #define ODOM "odom"
 #define BASE_SCAN "base_scan"
+#define BASE_SCAN1 "base_scan1"
 #define BASE_POSE_GROUND_TRUTH "base_pose_ground_truth"
 #define CMD_VEL "cmd_vel"
 #define POSE "cmd_pose"
+#define GOAL_POSE "pub_goal_point"
 #define POSESTAMPED "cmd_pose_stamped"
 #define IS_CRASHED "is_crashed"
 
@@ -101,10 +103,13 @@ private:
         std::vector<ros::Publisher> depth_pubs; //multiple depths
         std::vector<ros::Publisher> camera_pubs; //multiple cameras
         std::vector<ros::Publisher> laser_pubs; //multiple lasers
+        std::vector<ros::Publisher> laser_pubs1; //multiple lasers
 
         ros::Subscriber cmdvel_sub; //one cmd_vel subscriber
         ros::Subscriber pose_sub;
         ros::Subscriber posestamped_sub;
+        ros::Subscriber goalpose_sub;
+
     };
 
     std::vector<StageRobot const *> robotmodels_;
@@ -172,6 +177,9 @@ public:
 
     // Message callback for a cmd_pose message, which sets positions.
     void poseReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose const>& msg);
+
+    // Message callback for a pub_goal_pose message, which sets positions.
+    void goalposeReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose const>& msg);
 
     // Message callback for a cmd_pose_stamped message, which sets positions
     // with a timestamp (e.g., from rviz).
@@ -296,6 +304,17 @@ StageNode::poseReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose con
 }
 
 void
+StageNode::goalposeReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose const>& msg)
+{
+    
+    float x = msg->position.x;
+    float y = msg->position.y;
+
+    ROS_INFO("x=%.4f; y=%.4f", x, y);
+
+}
+
+void
 StageNode::poseStampedReceived(int idx, const boost::shared_ptr<geometry_msgs::PoseStamped const>& msg)
 {
     // Create a shared pointer to the raw pose and pass it through.
@@ -396,18 +415,27 @@ StageNode::SubscribeModels()
         new_robot->odom_pub = n_.advertise<nav_msgs::Odometry>(mapName(ODOM, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
         new_robot->stall_pub = n_.advertise<std_msgs::Int8>(mapName(IS_CRASHED, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
         new_robot->ground_truth_pub = n_.advertise<nav_msgs::Odometry>(mapName(BASE_POSE_GROUND_TRUTH, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
+   
         new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>(mapName(CMD_VEL, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::cmdvelReceived, this, r, _1));
         new_robot->pose_sub = n_.subscribe<geometry_msgs::Pose>(mapName(POSE, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::poseReceived, this, r, _1));
+        new_robot->goalpose_sub = n_.subscribe<geometry_msgs::Pose>(mapName(GOAL_POSE, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::goalposeReceived, this, r, _1));
 
         new_robot->posestamped_sub = n_.subscribe<geometry_msgs::PoseStamped>(mapName(POSESTAMPED, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::poseStampedReceived, this, r, _1));
 
         for (size_t s = 0;  s < new_robot->lasermodels.size(); ++s)
         {
             if (new_robot->lasermodels.size() == 1)
+            {
                 new_robot->laser_pubs.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10));
-            else
-                new_robot->laser_pubs.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN, r, s, static_cast<Stg::Model*>(new_robot->positionmodel)), 10));
+                new_robot->laser_pubs1.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN1, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10));
 
+            }
+            else
+            {
+                new_robot->laser_pubs.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN, r, s, static_cast<Stg::Model*>(new_robot->positionmodel)), 10));
+                new_robot->laser_pubs1.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN1, r, s, static_cast<Stg::Model*>(new_robot->positionmodel)), 10));
+            }
+                
         }
 
         for (size_t s = 0;  s < new_robot->cameramodels.size(); ++s)
@@ -513,6 +541,8 @@ StageNode::WorldCallback()
 
                 msg.header.stamp = sim_time;
                 robotmodel->laser_pubs[s].publish(msg);
+                robotmodel->laser_pubs1[s].publish(msg);
+
             }
 
             // Also publish the base->base_laser_link Tx.  This could eventually move
@@ -791,6 +821,7 @@ main(int argc, char** argv)
         puts(USAGE);
         exit(-1);
     }
+
 
     ros::init(argc, argv, "stageros");
 

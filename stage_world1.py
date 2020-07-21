@@ -4,8 +4,7 @@ import copy
 import tf
 import numpy as np
 
-
-from geometry_msgs.msg import Twist, Pose
+from geometry_msgs.msg import Twist, Pose, Point32
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from rosgraph_msgs.msg import Clock
@@ -14,10 +13,10 @@ from std_msgs.msg import Int8
 
 
 class StageWorld():
-    def __init__(self, beam_num, index, num_env):
+    def __init__(self, beam_num, index, num_env, robot_num):
         self.index = index
         self.num_env = num_env
-        node_name = 'StageEnv_' + str(index)
+        node_name = 'StageEnv_' + str(index+robot_num)
         rospy.init_node(node_name, anonymous=None)
 
         self.beam_mum = beam_num
@@ -45,23 +44,29 @@ class StageWorld():
         self.stop_counter = 0
 
         # -----------Publisher and Subscriber-------------
-        cmd_vel_topic = 'robot_' + str(index) + '/cmd_vel'
+        cmd_vel_topic = 'robot_' + str(index+robot_num) + '/cmd_vel'
         self.cmd_vel = rospy.Publisher(cmd_vel_topic, Twist, queue_size=10)
 
-        cmd_pose_topic = 'robot_' + str(index) + '/cmd_pose'
+        cmd_pose_topic = 'robot_' + str(index+robot_num) + '/cmd_pose'
         self.cmd_pose = rospy.Publisher(cmd_pose_topic, Pose, queue_size=2)
+        
+        goal_point_topic = 'robot_' + str(index+robot_num) + '/pub_goal_point'
+        self.pub_goal_point = rospy.Publisher(goal_point_topic, Pose, queue_size=2)
 
-        object_state_topic = 'robot_' + str(index) + '/base_pose_ground_truth'
+
+        # ---------Subscriber-----------------
+
+        object_state_topic = 'robot_' + str(index+robot_num) + '/base_pose_ground_truth'
         self.object_state_sub = rospy.Subscriber(object_state_topic, Odometry, self.ground_truth_callback)
 
-        laser_topic = 'robot_' + str(index) + '/base_scan'
+        laser_topic = 'robot_'+ str(index+robot_num) + '/base_scan'
 
         self.laser_sub = rospy.Subscriber(laser_topic, LaserScan, self.laser_scan_callback)
 
-        odom_topic = 'robot_' + str(index) + '/odom'
+        odom_topic = 'robot_' + str(index+robot_num) + '/odom'
         self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.odometry_callback)
 
-        crash_topic = 'robot_' + str(index) + '/is_crashed'
+        crash_topic = 'robot_' + str(index+robot_num) + '/is_crashed'
         self.check_crash = rospy.Subscriber(crash_topic, Int8, self.crash_callback)
 
 
@@ -71,15 +76,16 @@ class StageWorld():
         self.reset_stage = rospy.ServiceProxy('reset_positions', Empty)
 
 
+
         # # Wait until the first callback
         self.speed = None
         self.state = None
         self.speed_GT = None
         self.state_GT = None
-        while self.scan is None or self.speed is None or self.state is None\
-                or self.speed_GT is None or self.state_GT is None:
-            pass
 
+        while self.scan is None or self.speed is None or self.state is None or self.speed_GT is None or self.state_GT is None:
+            pass
+       
         rospy.sleep(1.)
         # # What function to call when you ctrl + c
         # rospy.on_shutdown(self.shutdown)
@@ -128,14 +134,18 @@ class StageWorld():
         step = float(raw_beam_num) / sparse_beam_num
         sparse_scan_left = []
         index = 0.
+
         for x in xrange(int(sparse_beam_num / 2)):
             sparse_scan_left.append(scan[int(index)])
             index += step
+
         sparse_scan_right = []
         index = raw_beam_num - 1.
+
         for x in xrange(int(sparse_beam_num / 2)):
             sparse_scan_right.append(scan[int(index)])
             index -= step
+
         scan_sparse = np.concatenate((sparse_scan_left, sparse_scan_right[::-1]), axis=0)
         return scan_sparse / 6.0 - 0.5
 
@@ -167,7 +177,6 @@ class StageWorld():
         self.start_time = time.time()
         rospy.sleep(0.5)
 
-
     def generate_goal_point(self):
         [x_g, y_g] = self.generate_random_goal()
         self.goal_point = [x_g, y_g]
@@ -175,7 +184,6 @@ class StageWorld():
 
         self.pre_distance = np.sqrt(x ** 2 + y ** 2)
         self.distance = copy.deepcopy(self.pre_distance)
-
 
     def get_reward_and_terminate(self, t):
         terminate = False
@@ -206,6 +214,7 @@ class StageWorld():
         if t > 150:
             terminate = True
             result = 'Time out'
+
         reward = reward_g + reward_c + reward_w
 
         return reward, terminate, result
@@ -270,6 +279,19 @@ class StageWorld():
             y = np.random.uniform(-9, 9)
             dis_origin = np.sqrt(x ** 2 + y ** 2)
             dis_goal = np.sqrt((x - self.init_pose[0]) ** 2 + (y - self.init_pose[1]) ** 2)
+            
+        g_point = Pose()
+
+        g_point.position.x = x
+        g_point.position.y = y
+        g_point.position.z = 0
+
+        g_point.orientation.x = 0
+        g_point.orientation.y = 0
+        g_point.orientation.z = 0
+        g_point.orientation.w = 0
+
+        self.pub_goal_point.publish(g_point)
 
         return [x, y]
 
@@ -277,3 +299,4 @@ class StageWorld():
 
 
 
+ 

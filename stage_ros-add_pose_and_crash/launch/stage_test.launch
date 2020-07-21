@@ -1,0 +1,24 @@
+<launch>
+
+    <!--  ************** Global Parameters ***************  -->
+    <param name="/use_sim_time" value="true"/>
+
+    <!--  ************** Stage Simulator ***************  -->
+    <node pkg="stage_ros_add_pose_and_crash" type="stageros" name="stageros" args="-u /home/nscl/catkin_ws/src/gym-collision-avoidance/gym_collision_avoidance/envs/policies/DRL_Long/worlds/stage1.world">
+        <remap from="robot_0/base_scan1" to="scan"/>
+    </node>
+
+    <!--  ************** Map Server **************  -->
+    <node name="map_server" pkg="map_server" type="map_server" args="/home/nscl/catkin_ws/src/gym-collision-avoidance/gym_collision_avoidance/envs/policies/DRL_Long/worlds/rink2.yaml" output="screen">
+        <param name="frame_id" value="/map"/>
+    </node>
+
+    <!--  ************** Localization **************  -->
+    <node pkg="amcl" type="amcl" name="amcl" output="screen">
+        <rosparam file="/home/nscl/catkin_ws/src/stage_ros-add_pose_and_crash/launch/params/amcl_params.yaml" command="load" />
+        <param name="initial_pose_x"            value="1"/>
+        <param name="initial_pose_y"            value="1"/>
+        <param name="initial_pose_a"            value="0"/>
+    </node>
+
+</launch>

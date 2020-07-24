@@ -16,6 +16,8 @@ from std_msgs.msg import Int8
 
 class StageWorld():
     def __init__(self, beam_num, index, num_env, robot_num):
+        print(index)
+
         self.index = index
         self.num_env = num_env
         node_name = 'StageEnv_' + str(index+robot_num)
@@ -62,7 +64,6 @@ class StageWorld():
         self.object_state_sub = rospy.Subscriber(object_state_topic, Odometry, self.ground_truth_callback)
 
         laser_topic = 'robot_'+ str(index+robot_num) + '/base_scan'
-
         self.laser_sub = rospy.Subscriber(laser_topic, LaserScan, self.laser_scan_callback)
 
         odom_topic = 'robot_' + str(index+robot_num) + '/odom'
@@ -93,6 +94,7 @@ class StageWorld():
         # rospy.on_shutdown(self.shutdown)
 
     def step(self, action, step_num):
+        
         
         self.control_vel(action)
         rospy.sleep(0.001)
@@ -159,6 +161,7 @@ class StageWorld():
         raw_beam_num = len(scan)
         sparse_beam_num = self.beam_mum
         step = float(raw_beam_num) / sparse_beam_num
+        
         sparse_scan_left = []
         index = 0.
 
@@ -246,7 +249,7 @@ class StageWorld():
         if np.abs(w) >  1.05:
             reward_w = -0.1 * np.abs(w)
 
-        if t > 150:
+        if t > 200:
             terminate = True
             result = 'Time out'
 

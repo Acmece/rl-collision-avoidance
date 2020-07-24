@@ -62,18 +62,11 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
         goal = np.asarray(env.get_local_goal())
         speed = np.asarray(env.get_self_speed())
         state = [obs_stack, goal, speed]
-        print(len(state))
-        print(state[0])
-        print(state[1])
-        print(state[2])
+
         
         while not terminal and not rospy.is_shutdown():
         
             state_list = comm.gather(state, root=0)
-            print(len(state_list))
-
-            print("env")
-            print(env)
 
             ## get_action
             #-------------------------------------------------------------------------
@@ -114,8 +107,6 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             speed_next = np.asarray(env.get_self_speed())
             state_next = [obs_stack, goal_next, speed_next]
 
-            print("len(state_next)")
-            print(len(state_next))
 
             # add transitons in buff and update policy
             r_list = comm.gather(r, root=0)
@@ -196,7 +187,7 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     size = comm.Get_size()
     
-    env = StageWorld(512, index=rank, num_env=NUM_ENV, robot_num=0)
+    env = StageWorld(512, index=rank, num_env=NUM_ENV)
     
     print("ENV")
     

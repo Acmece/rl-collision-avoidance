@@ -196,7 +196,7 @@ public:
 const char *
 StageNode::mapName(const char *name, size_t robotID, Stg::Model* mod) const
 {
-    //ROS_INFO("Robot %lu: Device %s", robotID, name);
+    ROS_INFO("Robot %lu: Device %s", robotID, name);
     bool umn = this->use_model_names;
 
     if ((positionmodels.size() > 1 ) || umn)
@@ -222,7 +222,7 @@ StageNode::mapName(const char *name, size_t robotID, Stg::Model* mod) const
 const char *
 StageNode::mapName(const char *name, size_t robotID, size_t deviceID, Stg::Model* mod) const
 {
-    //ROS_INFO("Robot %lu: Device %s:%lu", robotID, name, deviceID);
+    ROS_INFO("Robot %lu: Device %s:%lu", robotID, name, deviceID);
     bool umn = this->use_model_names;
 
     if ((positionmodels.size() > 1 ) || umn)
@@ -309,9 +309,6 @@ StageNode::goalposeReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose
     
     float x = msg->position.x;
     float y = msg->position.y;
-
-    ROS_INFO("x=%.4f; y=%.4f", x, y);
-
 }
 
 void
@@ -502,6 +499,7 @@ StageNode::WorldCallback()
     for (size_t r = 0; r < this->robotmodels_.size(); ++r)
     {
         StageRobot const * robotmodel = this->robotmodels_[r];
+        //ROS_INFO("robotmodel_nave: %s", robotmodel->name);
 
         //loop on the laser devices for the current robot
         for (size_t s = 0; s < robotmodel->lasermodels.size(); ++s)
@@ -573,6 +571,7 @@ StageNode::WorldCallback()
         nav_msgs::Odometry odom_msg;
         odom_msg.pose.pose.position.x = robotmodel->positionmodel->est_pose.x;
         odom_msg.pose.pose.position.y = robotmodel->positionmodel->est_pose.y;
+        ROS_INFO("EST_POSE: %d", robotmodel->positionmodel->est_pose.x);
         odom_msg.pose.pose.orientation = tf::createQuaternionMsgFromYaw(robotmodel->positionmodel->est_pose.a);
         Stg::Velocity v = robotmodel->positionmodel->GetVelocity();
         odom_msg.twist.twist.linear.x = v.x;
@@ -624,6 +623,8 @@ StageNode::WorldCallback()
 
         nav_msgs::Odometry ground_truth_msg;
         ground_truth_msg.pose.pose.position.x     = gt.getOrigin().x();
+        ROS_INFO("GLOBAL_POSE: %d", gt.getOrigin().x());
+
         ground_truth_msg.pose.pose.position.y     = gt.getOrigin().y();
         ground_truth_msg.pose.pose.position.z     = gt.getOrigin().z();
         ground_truth_msg.pose.pose.orientation.x  = gt.getRotation().x();
@@ -826,7 +827,7 @@ main(int argc, char** argv)
     ros::init(argc, argv, "stageros");
 
     bool gui = true;
-    bool use_model_names = false;
+    bool use_model_names = true;
     for(int i=0;i<(argc-1);i++)
     {
         if(!strcmp(argv[i], "-g"))

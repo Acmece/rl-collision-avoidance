@@ -32,13 +32,16 @@ class CNNPolicy(nn.Module):
         self.crt_fc2 = nn.Linear(256+2+2, 128)
         self.critic = nn.Linear(128, 1)
 
-
-
     def forward(self, x, goal, speed):
         """
             returns value estimation, action, log_action_prob
         """
         # action
+
+        # print(x.shape)
+        # print(goal.shape)
+        # print(speed.shape)
+
         a = F.relu(self.act_fea_cv1(x))
         a = F.relu(self.act_fea_cv2(a))
         a = a.view(a.shape[0], -1)
@@ -56,6 +59,8 @@ class CNNPolicy(nn.Module):
 
         # action prob on log scale
         logprob = log_normal_density(action, mean, std=std, log_std=logstd)
+        
+        #---------------------------------------------------------------------#
 
         # value
         v = F.relu(self.crt_fea_cv1(x))
@@ -65,7 +70,6 @@ class CNNPolicy(nn.Module):
         v = torch.cat((v, goal, speed), dim=-1)
         v = F.relu(self.crt_fc2(v))
         v = self.critic(v)
-
 
         return v, action, logprob, mean
 

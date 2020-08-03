@@ -17,8 +17,9 @@ from std_msgs.msg import Int8
 class StageWorld():
     def __init__(self, beam_num, index, num_env):
 
+
         self.index = index
-        self.num_env = num_env
+        self.num_env = num_env       
         node_name = 'StageEnv_' + str(index)
         rospy.init_node(node_name, anonymous=None)
 
@@ -79,8 +80,6 @@ class StageWorld():
 
         # -----------Service-------------------
         self.reset_stage = rospy.ServiceProxy('reset_positions', Empty)
-
-
 
         # # Wait until the first callback
         self.speed = None

@@ -66,9 +66,11 @@ def generate_action(env, state_list, policy, action_bound):
         goal_list = np.asarray(goal_list)
         speed_list = np.asarray(speed_list)
 
+
         s_list = Variable(torch.from_numpy(s_list)).float().cuda()
         goal_list = Variable(torch.from_numpy(goal_list)).float().cuda()
         speed_list = Variable(torch.from_numpy(speed_list)).float().cuda()
+
 
         v, a, logprob, mean = policy(s_list, goal_list, speed_list)
         v, a, logprob = v.data.cpu().numpy(), a.data.cpu().numpy(), logprob.data.cpu().numpy()
@@ -105,7 +107,6 @@ def generate_action_no_sampling(env, state_list, policy, action_bound):
         scaled_action = None
 
     return mean, scaled_action
-
 
 
 def calculate_returns(rewards, dones, last_value, values, gamma=0.99):
@@ -209,6 +210,7 @@ def ppo_update_stage2(policy, optimizer, batch_size, memory, filter_index, epoch
     advs = advs.reshape(num_step*num_env, 1)
     targets = targets.reshape(num_step*num_env, 1)
 
+    #----------------------------------------------------------
     obss = np.delete(obss, filter_index, 0)
     goals = np.delete(goals, filter_index, 0)
     speeds = np.delete(speeds, filter_index, 0)
@@ -216,7 +218,7 @@ def ppo_update_stage2(policy, optimizer, batch_size, memory, filter_index, epoch
     logprobs  = np.delete(logprobs, filter_index, 0)
     advs = np.delete(advs, filter_index, 0)
     targets = np.delete(targets, filter_index, 0)
-
+    #-------------------------------------------------------------
 
     for update in range(epoch):
         sampler = BatchSampler(SubsetRandomSampler(list(range(advs.shape[0]))), batch_size=batch_size,

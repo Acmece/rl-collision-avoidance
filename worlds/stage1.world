@@ -155,13 +155,13 @@ define human position
 )
 
 agent( pose [8.00 0.00 0.00 180.00] name "robot_0") #1
-human( pose [7.73 2.07 0.00 195.00] name "human_0" color "blue") #2
-human( pose [6.93 4.00 0.00 210.00] name "human_1" color "blue") #3
-human( pose [5.66 5.66 0.00 225.00] name "human_2" color "blue") #4
-human( pose [4.00 6.93 0.00 240.00] name "human_3" color "blue") #5
-human( pose [2.07 7.73 0.00 255.00] name "human_4" color "blue") #6
-human( pose [-0.00 8.00 0.00 270.00]name "human_5" color "blue") #7
-agent( pose [-2.07 7.73 0.00 285.00] name "robot_1") #1) #8
+#human( pose [7.73 2.07 0.00 195.00] name "human_0" color "blue") #2
+#human( pose [6.93 4.00 0.00 210.00] name "human_1" color "blue") #3
+#human( pose [5.66 5.66 0.00 225.00] name "human_2" color "blue") #4
+#human( pose [4.00 6.93 0.00 240.00] name "human_3" color "blue") #5
+#human( pose [2.07 7.73 0.00 255.00] name "human_4" color "blue") #6
+#human( pose [-0.00 8.00 0.00 270.00]name "human_5" color "blue") #7
+#agent( pose [-2.07 7.73 0.00 285.00] name "robot_1") #1) #8
 #agent( pose [-4.00 6.93 0.00 300.00]) #9
 #agent( pose [-5.66 5.66 0.00 315.00]) #10
 #agent( pose [-6.93 4.00 0.00 330.00]) #11

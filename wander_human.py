@@ -4,8 +4,7 @@ import sys
 import socket
 import numpy as np
 import rospy
-import torch
-import torch.nn as nn
+
 from mpi4py import MPI
 
 from collections import deque

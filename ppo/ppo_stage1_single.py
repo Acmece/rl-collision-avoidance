@@ -1,22 +1,21 @@
-import os
+import os #test
 import logging
 import sys
 import socket
-import numpy as np
-import rospy
-import torch
-import torch.nn as nn
-from mpi4py import MPI
+import numpy as np #test
+import rospy #test
+import torch #test
+import torch.nn as nn #test
+from mpi4py import MPI #test
 
-from torch.optim import Adam
-from collections import deque
+from torch.optim import Adam #test
+from collections import deque #test
 
-from model.net import MLPPolicy, CNNPolicy
-from gym_stage_one_agent_ import StageWorld
-
+from model.net import MLPPolicy, CNNPolicy #test
+from stage_world1 import StageWorld #test
 from model.ppo import ppo_update_stage1, generate_train_data
 from model.ppo import generate_action
-from model.ppo import transform_buffer
+from model.ppo import transform_buffer #test
 
 
 MAX_EPISODES = 5000
@@ -29,11 +28,13 @@ BATCH_SIZE = 1024
 EPOCH = 2
 COEFF_ENTROPY = 5e-4
 CLIP_VALUE = 0.1
-NUM_ENV = 2
+NUM_ENV = 1
 OBS_SIZE = 512
 ACT_SIZE = 2
 LEARNING_RATE = 5e-5
 
+
+#policy_path, optimizer 
 
 def run(comm, env, policy, policy_path, action_bound, optimizer):
 
@@ -42,14 +43,14 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
     global_update = 0
     global_step = 0
 
-    #world reset
+
     if env.index == 0:
         env.reset_world()
 
 
     for id in range(MAX_EPISODES):
         
-        #reset
+        #test
         env.reset_pose()
 
         env.generate_goal_point()
@@ -57,46 +58,55 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
         ep_reward = 0
         step = 1
 
-        # get_state
-
-        state = env.get_state()
+        obs = env.get_laser_observation()
+        obs_stack = deque([obs, obs, obs])
+        goal = np.asarray(env.get_local_goal())
+        speed = np.asarray(env.get_self_speed())
+        state = [obs_stack, goal, speed]
 
         while not terminal and not rospy.is_shutdown():
         
             state_list = comm.gather(state, root=0)
+            
 
 
-            ## get_action
-            #-------------------------------------------------------------------------
             # generate actions at rank==0
             v, a, logprob, scaled_action=generate_action(env=env, state_list=state_list,
                                                          policy=policy, action_bound=action_bound)
 
             # execute actions
             real_action = comm.scatter(scaled_action, root=0)
-            #-------------------------------------------------------------------------            
-            
-            ### step ############################################################
-            
-            state_next, r, terminal, result = env.step(real_action, step)
 
+            env.control_vel(real_action)
+
+            # rate.sleep()
+            rospy.sleep(0.001)
+
+            # get informtion
+            r, terminal, result = env.get_reward_and_terminate(step)
             ep_reward += r
             global_step += 1
 
-            # add transitons in buff and update policy
-            r_list = comm.gather(r, root=0)
-            terminal_list = comm.gather(terminal, root=0)
 
-            ########################################################################
+            # get next state
+            s_next = env.get_laser_observation()
+            left = obs_stack.popleft()
+            obs_stack.append(s_next)
+            goal_next = np.asarray(env.get_local_goal())
+            speed_next = np.asarray(env.get_self_speed())
+            state_next = [obs_stack, goal_next, speed_next]
+            print("len(state_next)")
+            print(len(state_next))
+            ############training#######################################################################################
 
             if global_step % HORIZON == 0:
                 state_next_list = comm.gather(state_next, root=0)
                 last_v, _, _, _ = generate_action(env=env, state_list=state_next_list, policy=policy,
                                                                action_bound=action_bound)
-            
-            
-            ## training
-            #-------------------------------------------------------------------------
+            # add transitons in buff and update policy
+            r_list = comm.gather(r, root=0)
+            terminal_list = comm.gather(terminal, root=0)
+
             if env.index == 0:
                 buff.append((state_list, a, r_list, terminal_list, logprob, v))
                 if len(buff) > HORIZON - 1:
@@ -114,9 +124,13 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
                     global_update += 1
 
             step += 1
+
+            ###################################################################################################
             state = state_next
 
-
+        
+        #####save policy and logger##############################################################################################
+    
         if env.index == 0:
             if global_update != 0 and global_update % 20 == 0:
                 torch.save(policy.state_dict(), policy_path + '/Stage1_{}'.format(global_update))
@@ -127,7 +141,9 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
         logger.info('Env %02d, Goal (%05.1f, %05.1f), Episode %05d, setp %03d, Reward %-5.1f, Distance %05.1f, %s' % \
                     (env.index, env.goal_point[0], env.goal_point[1], id + 1, step, ep_reward, distance, result))
         logger_cal.info(ep_reward)
-
+    
+        ###################################################################################################
+    
 
 if __name__ == '__main__':
 
@@ -161,7 +177,8 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     size = comm.Get_size()
     
-    env = StageWorld(512, index=rank, num_env=NUM_ENV, robot_num=0)
+
+    env = StageWorld(512, index=rank, num_env=NUM_ENV, robot_num=1)
     
     print("ENV")
     

@@ -119,8 +119,13 @@ def td3_update_stage(policy, optimizer, batch_size, memory, epoch, replay_size, 
 
         _ ,_ ,sampled_n_action = (actor_target(sampled_n_obs, sampled_n_goals, sampled_n_speeds))
 
+        noise_std = 0.2
+        sampled_noise = torch.normal(torch.zeros(sampled_n_action.size()), noise_std).cuda()
+        sampled_noise = torch.clamp(sampled_noise, -noise_clip, noise_clip)
+
         sampled_n_action = sampled_n_action + sampled_noise
         
+        '''
         for i in range(sampled_n_action.shape[0]):
             if sampled_n_action[i,0] < 0:
                 sampled_n_action[i,0] = 0
@@ -131,7 +136,8 @@ def td3_update_stage(policy, optimizer, batch_size, memory, epoch, replay_size, 
                 sampled_n_action[i,1] = -1
             elif sampled_n_action[i,1] > 1:
                 sampled_n_action[i,1] = 1   
-        
+        '''
+
         # Compute target Q-value:
         target_Q1 = critic_1_target(sampled_n_obs, sampled_n_goals, sampled_n_speeds, sampled_n_action)
         target_Q2 = critic_2_target(sampled_n_obs, sampled_n_goals, sampled_n_speeds, sampled_n_action)
@@ -158,7 +164,7 @@ def td3_update_stage(policy, optimizer, batch_size, memory, epoch, replay_size, 
 
             # Compute actor loss:
             _ , _, action_data = actor(sampled_obs, sampled_goals, sampled_speeds)
-            actor_loss = (-critic_1(sampled_obs, sampled_goals, sampled_speeds, action_data )).mean()            
+            actor_loss = -(critic_1(sampled_obs, sampled_goals, sampled_speeds, action_data )).mean()            
 
             # Optimize the actor
             actor_opt.zero_grad()

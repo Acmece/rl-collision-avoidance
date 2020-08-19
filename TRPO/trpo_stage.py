@@ -11,54 +11,37 @@ from mpi4py import MPI
 from torch.optim import Adam
 from collections import deque
 
-from model.net import Actor,Critic, OUNoise
-from ddpg_stage_world import StageWorld
-from model.ddpg import ddpg_update_stage
-from model.ddpg import generate_action
-
-from model.replay_memory import ReplayMemory
-from model.utils import hard_update
+from model.net import Policy, Value
+from simple_world import StageWorld
+from model.trpo import trpo_update_stage, generate_train_data
+from model.trpo import generate_action, generate_value
+from model.trpo import transform_buffer
 
 
-MAX_EPISODES = 100000
+MAX_EPISODES = 120000
 LASER_BEAM = 512
 LASER_HIST = 3
-HORIZON = 3072
+HORIZON = 300#3072
 GAMMA = 0.99
 LAMDA = 0.95
 BATCH_SIZE = 1024
-EPOCH = 1
+EPOCH = 2
 COEFF_ENTROPY = 5e-4
 CLIP_VALUE = 0.1
 NUM_ENV = 1
 OBS_SIZE = 512
 ACT_SIZE = 2
-CRITIC_LEARNING_RATE = 5e-5
-ACTOR_LEARNING_RATE = 5e-5
+P_LEARNING_RATE = 5e-5
+V_LEARNING_RATE = 5e-5
+L2_RATE = 0.001
+MAX_KL = 0.01
 
-REPLAY_SIZE = 100000
-SEED = 123456
+def run(comm, env, policy, value, policy_path, action_bound, policy_opt, value_opt):
 
-exploration_noise = 0.1 
-noise_clip = 0.5
-
-TAU = 0.001
-
-MAX_ACTION = 1.0
-
-def run(comm, env, policy, policy_path, action_bound, optimizer):
-
-    actor, actor_target, critic, critic_target = policy
-    actor_opt, critic_opt = optimizer
-    
-    noise_c = OUNoise(action_dim=ACT_SIZE, action_bound=action_bound)
-    noise_c.reset()
     # rate = rospy.Rate(5)
     buff = []
     global_update = 0
     global_step = 0
-
-    replay_memory = ReplayMemory(REPLAY_SIZE, SEED)
 
     #world reset
     if env.index == 0:
@@ -90,21 +73,13 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             ## get_action
             #-------------------------------------------------------------------------
             # generate actions at rank==0
-            mean, action = generate_action(env=env, state_list=state_list,
-                                                         actor=actor, action_bound=action_bound)
-            
-            
-            a = noise_c.get_action(mean, step)
-            #noise = np.random.normal(0, exploration_noise, size=2) #action size check
-            #a = mean + noise
-            
-
-            #a = a.clip(action_bound[0], action_bound[1])
-            
+            a, logprob, scaled_action=generate_action(env=env, state_list=state_list,
+                                                         policy=policy, action_bound=action_bound)
+            v = generate_value(env=env, state_list=state_list, value=value)
 
 
             # execute actions
-            real_action = comm.scatter(a, root=0)
+            real_action = comm.scatter(scaled_action, root=0)
             #-------------------------------------------------------------------------            
             
             ### step ############################################################
@@ -119,16 +94,17 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             #-------------------------------------------------------------------------
             # get informtion
             r, terminal, result = env.get_reward_and_terminate(step)
-            
             ep_reward += r
             global_step += 1
 
             #-------------------------------------------------------------------------
+
             # get next state
             #-------------------------------------------------------------------------
 
             s_next = env.get_laser_observation()
             left = obs_stack.popleft()
+            #left???????
             obs_stack.append(s_next)
             goal_next = np.asarray(env.get_local_goal())
             speed_next = np.asarray(env.get_self_speed())
@@ -142,30 +118,40 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
 
             ########################################################################
 
-            state_next_list = comm.gather(state_next, root=0)
-    
+            if global_step % HORIZON == 0:
+                state_next_list = comm.gather(state_next, root=0)
+                last_v = generate_value(env=env, state_list=state_next_list, value=value)
+                                                               
             ## training
             #-------------------------------------------------------------------------
             if env.index == 0:
-                replay_memory.push(state[0], state[1], state[2], a, r_list, state_next[0], state_next[1], state_next[2], terminal_list)              
-                policy_list = [actor, actor_target, critic, critic_target]
-                optimizer_list = [actor_opt, critic_opt]
+                buff.append((state_list, a, r_list, terminal_list, logprob, v))
+                if len(buff) > HORIZON - 1:
 
-                if len(replay_memory) > BATCH_SIZE:
-                    ddpg_update_stage(policy=policy_list, optimizer=optimizer_list, batch_size=BATCH_SIZE, memory=replay_memory, epoch = EPOCH, 
-                                            replay_size=REPLAY_SIZE, gamma=GAMMA, num_step=BATCH_SIZE, num_env=NUM_ENV, frames=LASER_HIST, 
-                                            obs_size=OBS_SIZE, act_size=ACT_SIZE, tau=TAU)
+                    
+                    s_batch, goal_batch, speed_batch, a_batch, r_batch, d_batch, l_batch, v_batch = \
+                        transform_buffer(buff=buff)
+                    t_batch, advs_batch = generate_train_data(rewards=r_batch, gamma=GAMMA, values=v_batch,
+                                                              last_value=last_v, dones=d_batch, lam=LAMDA)
+                    memory = (s_batch, goal_batch, speed_batch, a_batch, l_batch, t_batch, v_batch, r_batch, advs_batch)
+                    trpo_update_stage(policy=policy, policy_opt=policy_opt, value=value, value_opt=value_opt,
+                                            batch_size=BATCH_SIZE, memory=memory,
+                                            epoch=EPOCH, max_kl=MAX_KL, num_step=HORIZON,
+                                            num_env=NUM_ENV, frames=LASER_HIST,
+                                            obs_size=OBS_SIZE, act_size=ACT_SIZE)
+
+                    buff = []
                     global_update += 1
 
             step += 1
             state = state_next
 
-    
+
         if env.index == 0:
-            if global_update != 0 and global_update % 3000 == 0:
-                torch.save(actor.state_dict(), policy_path + '/actor_{}'.format(global_update))
-                torch.save(critic.state_dict(), policy_path + '/critic_{}'.format(global_update))
-                
+            if global_update != 0 and global_update % 20 == 0:
+                torch.save(policy.state_dict(), policy_path + '/policy_{}'.format(global_update))
+                torch.save(value.state_dict(), policy_path + '/value_{}'.format(global_update))
+
                 logger.info('########################## model saved when update {} times#########'
                             '################'.format(global_update))
         distance = np.sqrt((env.goal_point[0] - env.init_pose[0])**2 + (env.goal_point[1]-env.init_pose[1])**2)
@@ -179,10 +165,10 @@ if __name__ == '__main__':
 
     # config log
     hostname = socket.gethostname()
-    if not os.path.exists('./log/' + hostname + 'ddpg2'):
-        os.makedirs('./log/' + hostname + 'ddpg2')
-    output_file = './log/' + hostname + 'ddpg2' + '/output.log'
-    cal_file = './log/' + hostname + 'ddpg2' + '/cal.log'
+    if not os.path.exists('./log/' + hostname + '_trpo'):
+        os.makedirs('./log/' + hostname + '_trpo')
+    output_file = './log/' + hostname + '_trpo' + '/output.log'
+    cal_file = './log/' + hostname + '_trpo' + '/cal.log'
 
     # config log
     logger = logging.getLogger('mylogger')
@@ -212,85 +198,57 @@ if __name__ == '__main__':
     print("ENV")
     
     reward = None
-    action_bound = [[0, -1], [1, 1]] 
-    
+    action_bound = [[0, -1], [1, 1]] ####
     # torch.manual_seed(1)
     # np.random.seed(1)
     if rank == 0:
-        policy_path = 'policy_0819'
+        policy_path = 'policy_0819_trpo'
+        # policy = MLPPolicy(obs_size, act_size)
+        policy = Policy(frames=LASER_HIST, action_space=2)
+        policy.cuda()
+        value = Value(frames=LASER_HIST, action_space=2)
+        value.cuda()
         
-        #actor
-        actor = Actor(frames=LASER_HIST, action_space=2, max_action = MAX_ACTION)
-        actor.cuda()
+        policy_opt = Adam(policy.parameters(), lr=P_LEARNING_RATE)
+        value_opt = Adam(value.parameters(), lr=V_LEARNING_RATE, weight_decay=L2_RATE)
         
-        actor_opt = Adam(actor.parameters(), lr=ACTOR_LEARNING_RATE)
-        
-        actor_target = Actor(frames=LASER_HIST, action_space=2, max_action = MAX_ACTION)
-        actor_target.cuda()
-
-        hard_update(actor_target, actor)
-
-        #critic
-        critic = Critic(frames=LASER_HIST, action_space=2)
-        critic.cuda()
-        
-        critic_opt = Adam(critic.parameters(), lr=CRITIC_LEARNING_RATE)
-        
-        critic_target = Critic(frames=LASER_HIST, action_space=2)
-        critic_target.cuda()
-
-        hard_update(critic_target, critic)
-
+        mse = nn.MSELoss()
 
         if not os.path.exists(policy_path):
             os.makedirs(policy_path)
-        
-        file = policy_path + '/stage1_2.pth'
-        if os.path.exists(file):
+
+        policy_file = policy_path + '/stage1_2.pth'
+        if os.path.exists(policy_file):
             logger.info('####################################')
-            logger.info('#######Actor Loading Model##########')
+            logger.info('############Loading Model###########')
             logger.info('####################################')
-            state_dict = torch.load(file)
-            actor.load_state_dict(state_dict)
+            state_dict = torch.load(policy_file)
+            policy.load_state_dict(state_dict)
         else:
             logger.info('#####################################')
-            logger.info('#######Actor Start Training##########')
+            logger.info('############Start Training###########')
             logger.info('#####################################')
         
-        file = policy_path + '/stage1_2.pth'
-        if os.path.exists(file):
+        value_file = policy_path + '/stage1_2.pth'
+        if os.path.exists(value_file):
             logger.info('####################################')
-            logger.info('######Critic Loading Model########')
+            logger.info('############Loading Model###########')
             logger.info('####################################')
-            state_dict = torch.load(file)
-            critic.load_state_dict(state_dict)
+            state_dict = torch.load(value_file)
+            value.load_state_dict(state_dict)
         else:
             logger.info('#####################################')
-            logger.info('######Critic Start Training########')
+            logger.info('############Start Training###########')
             logger.info('#####################################')
-
-        policy_list = [actor, actor_target, critic, critic_target]
-        optimizer_list = [actor_opt, critic_opt]
-
-
     else:
-        actor = None
-        actor_target = None
-
-        critic= None
-        critic_target = None
-
+        policy = None
+        policy = None
 
         policy_path = None
-        actor_opt = None
-        critic_opt = None
-
-
-        policy_list = [actor, actor_target, critic, critic_target]
-        optimizer_list = [actor_opt, critic_opt]
-
+        policy_opt = None
+        value_opt = None
 
     try:
-        run(comm=comm, env=env, policy=policy_list, policy_path=policy_path, action_bound=action_bound, optimizer=optimizer_list)
+        run(comm=comm, env=env, policy=policy, value=value,  policy_path=policy_path, action_bound=action_bound, policy_opt=policy_opt, value_opt=value_opt)
     except KeyboardInterrupt:
         pass

@@ -15,6 +15,7 @@ from std_msgs.msg import Int8
 class StageWorld():
     def __init__(self, beam_num, index, num_env):
         self.index = index
+        index = 1
         self.num_env = num_env
         node_name = 'StageEnv_' + str(index)
         rospy.init_node(node_name, anonymous=None)
@@ -196,6 +197,7 @@ class StageWorld():
         reward_g = (self.pre_distance - self.distance) * 2.5
         reward_c = 0
         reward_w = 0
+        reward_t = 0
         result = 0
         is_crash = self.get_crash_state()
 
@@ -215,8 +217,10 @@ class StageWorld():
         if t > 150:
             terminate = True
             result = 'Time out'
+        else:
+            reward_t = -0.1
 
-        reward = reward_g + reward_c + reward_w
+        reward = reward_g + reward_c + reward_w + reward_t
 
         return reward, terminate, result
 

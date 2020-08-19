@@ -11,7 +11,7 @@ from mpi4py import MPI
 from torch.optim import Adam
 from collections import deque
 
-from model.net import Actor,Critic, CNNPolicy
+from model.net import Actor,Critic, CNNPolicy, GaussianExploration
 from td3_stage_world import StageWorld
 from model.td3 import td3_update_stage
 from model.td3 import generate_action, select_action
@@ -19,7 +19,7 @@ from model.td3 import generate_action, select_action
 from model.replay_memory import ReplayMemory
 
 
-MAX_EPISODES = 120000
+MAX_EPISODES = 30000
 LASER_BEAM = 512
 LASER_HIST = 3
 HORIZON = 3072
@@ -49,6 +49,8 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
 
     actor, actor_target, critic_1, critic_1_target, critic_2, critic_2_target = policy
     actor_opt, critic_1_opt, critic_2_opt = optimizer
+
+    noise = GaussianExploration(action_bound)
 
     # rate = rospy.Rate(5)
     buff = []
@@ -87,9 +89,10 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             ## get_action
             #-------------------------------------------------------------------------
             # generate actions at rank==0
-            mean, a = select_action(env=env, state_list=state_list,
+            mean, action = select_action(env=env, state_list=state_list,
                                                          actor=actor, action_bound=action_bound)
 
+            a = noise.get_action(mean, step)
             '''
             a = a + np.random.normal(0, exploration_noise, size=(1,2)) #action size check
             
@@ -175,10 +178,10 @@ if __name__ == '__main__':
 
     # config log
     hostname = socket.gethostname()
-    if not os.path.exists('./log/' + hostname + 'reward_g'):
-        os.makedirs('./log/' + hostname + 'reward_g')
-    output_file = './log/' + hostname + 'reward_g' + '/output.log'
-    cal_file = './log/' + hostname + 'reward_g' + '/cal.log'
+    if not os.path.exists('./log/' + hostname + 'td3'):
+        os.makedirs('./log/' + hostname + 'td3')
+    output_file = './log/' + hostname + 'td3' + '/output.log'
+    cal_file = './log/' + hostname + 'td3' + '/cal.log'
 
     # config log
     logger = logging.getLogger('mylogger')
@@ -213,7 +216,7 @@ if __name__ == '__main__':
     # torch.manual_seed(1)
     # np.random.seed(1)
     if rank == 0:
-        policy_path = 'policy_0812_reward_g'
+        policy_path = 'policy_0819'
         
         #actor
         actor = Actor(frames=LASER_HIST, action_space=2, max_action = MAX_ACTION)

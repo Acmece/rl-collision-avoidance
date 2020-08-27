@@ -11,13 +11,12 @@ from mpi4py import MPI
 from torch.optim import Adam
 from collections import deque
 
-from model.net import Actor,Critic, OUNoise
-from ddpg_stage_world import StageWorld
-from model.ddpg import ddpg_update_stage
-from model.ddpg import generate_action
-
+from model.net import QNetwork, CNNPolicy
+from stage_world import StageWorld
+from model.sac import sac_update_stage
+from model.sac import generate_action
+from model.update_file import hard_update
 from model.replay_memory import ReplayMemory
-from model.utils import hard_update
 
 
 MAX_EPISODES = 100000
@@ -33,51 +32,42 @@ CLIP_VALUE = 0.1
 NUM_ENV = 1
 OBS_SIZE = 512
 ACT_SIZE = 2
-CRITIC_LEARNING_RATE = 5e-5
-ACTOR_LEARNING_RATE = 5e-5
+LEARNING_RATE = 5e-5
 
 REPLAY_SIZE = 100000
+TAU = 0.005
+UPDATE_INTERVAL = 1
+ALPHA = 0.2
 SEED = 123456
 
-exploration_noise = 0.1 
-noise_clip = 0.5
-
-TAU = 0.001
-
-MAX_ACTION = 1.0
-
-def run(comm, env, policy, policy_path, action_bound, optimizer):
-
-    actor, actor_target, critic, critic_target = policy
-    actor_opt, critic_opt = optimizer
-    
-    # set OU noise
-    noise_c = OUNoise(action_dim=ACT_SIZE, action_bound=action_bound)
-    noise_c.reset()
+def run(comm, env, policy, critic, critic_opt, critic_target, policy_path, action_bound, optimizer):
 
     buff = []
     global_update = 0
     global_step = 0
 
-    replay_memory = ReplayMemory(REPLAY_SIZE, SEED)
-
-    #world reset
+    # world reset
     if env.index == 0:
         env.reset_world()
 
+    memory_position = 0
+    update = 0
+
+    # replay_memory     
+    replay_memory = ReplayMemory(REPLAY_SIZE, SEED)
 
     for id in range(MAX_EPISODES):
         
-        #reset
+        # reset
         env.reset_pose()
-
+        
         terminal = False
         ep_reward = 0
         step = 1
 
         # generate goal
         env.generate_goal_point()
-
+        
         # get_state
         obs = env.get_laser_observation()
         obs_stack = deque([obs, obs, obs])
@@ -87,88 +77,81 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
 
         # episode 1
         while not terminal and not rospy.is_shutdown():
-        
+                        
             state_list = comm.gather(state, root=0)
 
             ## get_action
             #-------------------------------------------------------------------------
             # generate actions at rank==0
-            mean, action = generate_action(env=env, state_list=state_list,
-                                                         actor=actor, action_bound=action_bound)
-            
-            
-            ## exploration 
-            #--------------------------------------------------------------------------
-            a = noise_c.get_action(mean, step)
-            #noise = np.random.normal(0, exploration_noise, size=2) #action size check
-            #a = mean + noise
-            #a = a.clip(action_bound[0], action_bound[1])
+            a, logprob, scaled_action=generate_action(env=env, state_list=state_list,
+                                                         policy=policy, action_bound=action_bound)
 
             # execute actions
             #-------------------------------------------------------------------------            
-            real_action = comm.scatter(a, root=0)
-
+            real_action = comm.scatter(scaled_action, root=0)
+            
             ## run action
             #-------------------------------------------------------------------------            
             env.control_vel(real_action)
 
-            # rate.sleep()
             rospy.sleep(0.001)
 
             ## get reward
             #-------------------------------------------------------------------------
             # get informtion
             r, terminal, result = env.get_reward_and_terminate(step)
-            
             ep_reward += r
             global_step += 1
 
             #-------------------------------------------------------------------------
+
             # get next state
             #-------------------------------------------------------------------------
-
             s_next = env.get_laser_observation()
             left = obs_stack.popleft()
+            
             obs_stack.append(s_next)
             goal_next = np.asarray(env.get_local_goal())
             speed_next = np.asarray(env.get_self_speed())
             state_next = [obs_stack, goal_next, speed_next]
 
+            #-------------------------------------------------------------------------
+
             r_list = comm.gather(r, root=0)
             terminal_list = comm.gather(terminal, root=0)
             state_next_list = comm.gather(state_next, root=0)
-    
-            #-------------------------------------------------------------------------            
+
+
             ## training
             #-------------------------------------------------------------------------
             if env.index == 0:
 
-                ## save data in memory
+                # add data in replay_memory
                 #-------------------------------------------------------------------------
-                replay_memory.push(state[0], state[1], state[2], a, r_list, state_next[0], state_next[1], state_next[2], terminal_list)              
-                policy_list = [actor, actor_target, critic, critic_target]
-                optimizer_list = [actor_opt, critic_opt]
-
+                replay_memory.push(state[0], state[1],state[2],a, logprob, r_list, state_next[0], state_next[1], state_next[2], terminal_list)
                 if len(replay_memory) > BATCH_SIZE:
-                    
-                    ## Update step by step
+            
+                    ## update
                     #-------------------------------------------------------------------------
-                    ddpg_update_stage(policy=policy_list, optimizer=optimizer_list, batch_size=BATCH_SIZE, memory=replay_memory, epoch = EPOCH, 
-                                            replay_size=REPLAY_SIZE, gamma=GAMMA, num_step=BATCH_SIZE, num_env=NUM_ENV, frames=LASER_HIST, 
-                                            obs_size=OBS_SIZE, act_size=ACT_SIZE, tau=TAU)
+                    update = sac_update_stage(policy=policy, optimizer=optimizer, critic=critic, critic_opt=critic_opt, critic_target=critic_target, 
+                                            batch_size=BATCH_SIZE, memory=replay_memory, epoch=EPOCH, replay_size=REPLAY_SIZE,
+                                            tau=TAU, alpha=ALPHA, gamma=GAMMA, updates=update, update_interval=UPDATE_INTERVAL,
+                                            num_step=BATCH_SIZE, num_env=NUM_ENV, frames=LASER_HIST,
+                                            obs_size=OBS_SIZE, act_size=ACT_SIZE)
+
+                    buff = []
                     global_update += 1
+                    update = update
 
             step += 1
             state = state_next
 
-    
-        ## save policy and log
-        #-------------------------------------------------------------------------
+        ## save policy
+        #--------------------------------------------------------------------------------------------------------------
         if env.index == 0:
-            if global_update != 0 and global_update % 3000 == 0:
-                torch.save(actor.state_dict(), policy_path + '/actor_{}'.format(global_update))
+            if global_update != 0 and global_update % 1000 == 0:
+                torch.save(policy.state_dict(), policy_path + '/policy_{}'.format(global_update))
                 torch.save(critic.state_dict(), policy_path + '/critic_{}'.format(global_update))
-                
                 logger.info('########################## model saved when update {} times#########'
                             '################'.format(global_update))
         distance = np.sqrt((env.goal_point[0] - env.init_pose[0])**2 + (env.goal_point[1]-env.init_pose[1])**2)
@@ -182,10 +165,10 @@ if __name__ == '__main__':
 
     # config log
     hostname = socket.gethostname()
-    if not os.path.exists('./log/' + hostname + 'ddpg2'):
-        os.makedirs('./log/' + hostname + 'ddpg2')
-    output_file = './log/' + hostname + 'ddpg2' + '/output.log'
-    cal_file = './log/' + hostname + 'ddpg2' + '/cal.log'
+    if not os.path.exists('./log/' + hostname):
+        os.makedirs('./log/' + hostname)
+    output_file = './log/' + hostname + '/output.log'
+    cal_file = './log/' + hostname + '/cal.log'
 
     # config log
     logger = logging.getLogger('mylogger')
@@ -215,85 +198,47 @@ if __name__ == '__main__':
     print("ENV")
     
     reward = None
-    action_bound = [[0, -1], [1, 1]] 
-    
+    action_bound = [[0, -1], [1, 1]] ####
     # torch.manual_seed(1)
     # np.random.seed(1)
     if rank == 0:
-        policy_path = 'policy_0819'
+        policy_path = 'policy_0809'
+        # policy = MLPPolicy(obs_size, act_size)
+        policy = CNNPolicy(frames=LASER_HIST, action_space=2)
+        policy.cuda()
         
-        #actor
-        actor = Actor(frames=LASER_HIST, action_space=2, max_action = MAX_ACTION)
-        actor.cuda()
-        
-        actor_opt = Adam(actor.parameters(), lr=ACTOR_LEARNING_RATE)
-        
-        actor_target = Actor(frames=LASER_HIST, action_space=2, max_action = MAX_ACTION)
-        actor_target.cuda()
+        opt = Adam(policy.parameters(), lr=LEARNING_RATE)
+        mse = nn.MSELoss()
 
-        hard_update(actor_target, actor)
-
-        #critic
-        critic = Critic(frames=LASER_HIST, action_space=2)
+        critic = QNetwork(frames=LASER_HIST, action_space=2)
         critic.cuda()
-        
-        critic_opt = Adam(critic.parameters(), lr=CRITIC_LEARNING_RATE)
-        
-        critic_target = Critic(frames=LASER_HIST, action_space=2)
+
+        critic_opt = Adam(critic.parameters(), lr=LEARNING_RATE)
+        critic_target = QNetwork(frames=LASER_HIST, action_space=2)
         critic_target.cuda()
 
         hard_update(critic_target, critic)
 
-
         if not os.path.exists(policy_path):
             os.makedirs(policy_path)
-        
+
         file = policy_path + '/stage1_2.pth'
         if os.path.exists(file):
             logger.info('####################################')
-            logger.info('#######Actor Loading Model##########')
+            logger.info('############Loading Model###########')
             logger.info('####################################')
             state_dict = torch.load(file)
-            actor.load_state_dict(state_dict)
+            policy.load_state_dict(state_dict)
         else:
             logger.info('#####################################')
-            logger.info('#######Actor Start Training##########')
+            logger.info('############Start Training###########')
             logger.info('#####################################')
-        
-        file = policy_path + '/stage1_2.pth'
-        if os.path.exists(file):
-            logger.info('####################################')
-            logger.info('######Critic Loading Model########')
-            logger.info('####################################')
-            state_dict = torch.load(file)
-            critic.load_state_dict(state_dict)
-        else:
-            logger.info('#####################################')
-            logger.info('######Critic Start Training########')
-            logger.info('#####################################')
-
-        policy_list = [actor, actor_target, critic, critic_target]
-        optimizer_list = [actor_opt, critic_opt]
-
-
     else:
-        actor = None
-        actor_target = None
-
-        critic= None
-        critic_target = None
-
-
+        policy = None
         policy_path = None
-        actor_opt = None
-        critic_opt = None
-
-
-        policy_list = [actor, actor_target, critic, critic_target]
-        optimizer_list = [actor_opt, critic_opt]
-
+        opt = None
 
     try:
-        run(comm=comm, env=env, policy=policy_list, policy_path=policy_path, action_bound=action_bound, optimizer=optimizer_list)
+        run(comm=comm, env=env, policy=policy, critic=critic, critic_opt=critic_opt, critic_target=critic_target, policy_path=policy_path, action_bound=action_bound, optimizer=opt)
     except KeyboardInterrupt:
         pass

@@ -84,6 +84,11 @@ class CNNPolicy(nn.Module):
         dist_entropy = dist_entropy.sum(-1).mean()
         return v, logprob, dist_entropy
 
+
+
+#--------------------------------------------------------------------------------------------------------
+## Actor
+#--------------------------------------------------------------------------------------------------------
 class Policy(nn.Module):
     def __init__(self, frames, action_space):
         super(Policy, self).__init__()
@@ -98,7 +103,7 @@ class Policy(nn.Module):
 
     def forward(self, x, goal, speed):
         """
-            returns estimation, action, log_action_prob
+            returns action, log_action_prob, mean(sigmoid, tanh), log_standard deviation, standard deviation
         """
         a = F.relu(self.act_fea_cv1(x))
         a = F.relu(self.act_fea_cv2(a))
@@ -121,7 +126,9 @@ class Policy(nn.Module):
         return action, logprob, mean, logstd, std
      
     def evaluate_actions(self, x, goal, speed, action):
-        
+        """
+            returns log_action_prob, distance_entropy
+        """
         _, _, mean, _, _ = self.forward(x, goal, speed)
         logstd = self.logstd.expand_as(mean)
         std = torch.exp(logstd)
@@ -132,6 +139,10 @@ class Policy(nn.Module):
         dist_entropy = dist_entropy.sum(-1).mean()
         return logprob, dist_entropy
 
+
+#--------------------------------------------------------------------------------------------------------
+## Critic
+#--------------------------------------------------------------------------------------------------------
 class Value(nn.Module):
     def __init__(self, frames, action_space):
         super(Value, self).__init__()
@@ -144,7 +155,7 @@ class Value(nn.Module):
 
     def forward(self, x, goal, speed):
         """
-            returns value 
+            returns value estimate
         """
         # value
         v = F.relu(self.crt_fea_cv1(x))

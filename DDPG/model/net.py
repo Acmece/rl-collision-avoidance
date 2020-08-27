@@ -84,6 +84,9 @@ class CNNPolicy(nn.Module):
         return v, logprob, dist_entropy
 
 
+#--------------------------------------------------------------------------------------------------------
+## Actor
+#--------------------------------------------------------------------------------------------------------
 class Actor(nn.Module):
     def __init__(self, frames, action_space, max_action):
         super(Actor, self).__init__()
@@ -109,7 +112,7 @@ class Actor(nn.Module):
 
     def forward(self, x, goal, speed):
         """
-            returns value estimation, action, log_action_prob
+            returns mean(sigmoid, tanh), action
         """
 
         a = F.relu(self.act_fea_cv1(x))
@@ -134,6 +137,9 @@ class Actor(nn.Module):
         return mean, action
 
 
+#--------------------------------------------------------------------------------------------------------
+## Critic
+#--------------------------------------------------------------------------------------------------------
 class Critic(nn.Module):
     def __init__(self, frames, action_space):
         super(Critic, self).__init__()
@@ -152,7 +158,7 @@ class Critic(nn.Module):
 
     def forward(self, x, goal, speed, action):
         """
-            returns value estimation, action, log_action_prob
+            returns value estimation
         """
 
         # value
@@ -167,6 +173,9 @@ class Critic(nn.Module):
         return v
 
 
+#--------------------------------------------------------------------------------------------------------
+## OU noise for exploration
+#-------------------------------------------------------------------------------------------------------
 class OUNoise(object):
     def __init__(self, action_dim, action_bound, mu=0.0, theta=0.15, max_sigma=0.3, min_sigma=0.3, decay_period=100000):
         self.mu           = mu

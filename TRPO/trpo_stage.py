@@ -50,15 +50,20 @@ def run(comm, env, policy, value, policy_path, action_bound, policy_opt, value_o
 
     for id in range(MAX_EPISODES):
         
-        #reset
+        ## reset
+        #--------------------------------------------------
         env.reset_pose()
 
-        env.generate_goal_point()
         terminal = False
         ep_reward = 0
         step = 1
 
-        # get_state
+        ## generate goal
+        #--------------------------------------------------
+        env.generate_goal_point()
+
+        ## get_state
+        #--------------------------------------------------
         obs = env.get_laser_observation()
         obs_stack = deque([obs, obs, obs])
         goal = np.asarray(env.get_local_goal())
@@ -70,24 +75,22 @@ def run(comm, env, policy, value, policy_path, action_bound, policy_opt, value_o
         
             state_list = comm.gather(state, root=0)
 
-            ## get_action
+            ## get_action and value
             #-------------------------------------------------------------------------
-            # generate actions at rank==0
+            # generate actions and value at rank==0
             a, logprob, scaled_action=generate_action(env=env, state_list=state_list,
                                                          policy=policy, action_bound=action_bound)
             v = generate_value(env=env, state_list=state_list, value=value)
 
 
-            # execute actions
+            ## execute actions
+            #--------------------------------------------------
             real_action = comm.scatter(scaled_action, root=0)
-            #-------------------------------------------------------------------------            
             
-            ### step ############################################################
             ## run action
+            #--------------------------------------------------
             env.control_vel(real_action)
-            #-------------------------------------------------------------------------
-
-            # rate.sleep()
+            
             rospy.sleep(0.001)
 
             ## get reward
@@ -97,43 +100,45 @@ def run(comm, env, policy, value, policy_path, action_bound, policy_opt, value_o
             ep_reward += r
             global_step += 1
 
-            #-------------------------------------------------------------------------
-
-            # get next state
+        
+            ## get next state
             #-------------------------------------------------------------------------
 
             s_next = env.get_laser_observation()
             left = obs_stack.popleft()
-            #left???????
             obs_stack.append(s_next)
             goal_next = np.asarray(env.get_local_goal())
             speed_next = np.asarray(env.get_self_speed())
             state_next = [obs_stack, goal_next, speed_next]
 
-
-            # add transitons in buff and update policy
             r_list = comm.gather(r, root=0)
             terminal_list = comm.gather(terminal, root=0)
             #-------------------------------------------------------------------------
 
-            ########################################################################
-
             if global_step % HORIZON == 0:
                 state_next_list = comm.gather(state_next, root=0)
                 last_v = generate_value(env=env, state_list=state_next_list, value=value)
-                                                               
+
+
             ## training
             #-------------------------------------------------------------------------
             if env.index == 0:
                 buff.append((state_list, a, r_list, terminal_list, logprob, v))
                 if len(buff) > HORIZON - 1:
 
-                    
+                    ## memory saver
+                    #---------------------------------------------------------------------------------------------------        
                     s_batch, goal_batch, speed_batch, a_batch, r_batch, d_batch, l_batch, v_batch = \
                         transform_buffer(buff=buff)
+                    
+                    ## get target & get advantage function
+                    #---------------------------------------------------------------------------------------------------        
                     t_batch, advs_batch = generate_train_data(rewards=r_batch, gamma=GAMMA, values=v_batch,
                                                               last_value=last_v, dones=d_batch, lam=LAMDA)
                     memory = (s_batch, goal_batch, speed_batch, a_batch, l_batch, t_batch, v_batch, r_batch, advs_batch)
+                    
+                    ## update
+                    #---------------------------------------------------------------------------------------------------        
                     trpo_update_stage(policy=policy, policy_opt=policy_opt, value=value, value_opt=value_opt,
                                             batch_size=BATCH_SIZE, memory=memory,
                                             epoch=EPOCH, max_kl=MAX_KL, num_step=HORIZON,
@@ -147,6 +152,8 @@ def run(comm, env, policy, value, policy_path, action_bound, policy_opt, value_o
             state = state_next
 
 
+        ## save policy
+        #-------------------------------------------------------------------------
         if env.index == 0:
             if global_update != 0 and global_update % 20 == 0:
                 torch.save(policy.state_dict(), policy_path + '/policy_{}'.format(global_update))

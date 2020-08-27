@@ -36,11 +36,6 @@ class CNNPolicy(nn.Module):
         """
             returns value estimation, action, log_action_prob
         """
-        # action
-
-        # print(x.shape)
-        # print(goal.shape)
-        # print(speed.shape)
 
         a = F.relu(self.act_fea_cv1(x))
         a = F.relu(self.act_fea_cv2(a))
@@ -83,7 +78,9 @@ class CNNPolicy(nn.Module):
         dist_entropy = dist_entropy.sum(-1).mean()
         return v, logprob, dist_entropy
 
-
+#--------------------------------------------------------------------------------------------------------
+## Actor
+#--------------------------------------------------------------------------------------------------------
 class Actor(nn.Module):
     def __init__(self, frames, action_space, max_action):
         super(Actor, self).__init__()
@@ -100,7 +97,7 @@ class Actor(nn.Module):
 
     def forward(self, x, goal, speed):
         """
-            returns value estimation, action, log_action_prob
+            returns action, log_action_prob, mean(sigmoid, tanh)
         """
 
         a = F.relu(self.act_fea_cv1(x))
@@ -127,6 +124,9 @@ class Actor(nn.Module):
         return action, logprob, mean
 
 
+#--------------------------------------------------------------------------------------------------------
+## Critic
+#--------------------------------------------------------------------------------------------------------
 class Critic(nn.Module):
     def __init__(self, frames, action_space):
         super(Critic, self).__init__()
@@ -139,7 +139,7 @@ class Critic(nn.Module):
 
     def forward(self, x, goal, speed, action):
         """
-            returns value estimation, action, log_action_prob
+            returns value estimation
         """
 
         # value
@@ -153,6 +153,9 @@ class Critic(nn.Module):
 
         return v
 
+#--------------------------------------------------------------------------------------------------------
+## exploration
+#--------------------------------------------------------------------------------------------------------
 class GaussianExploration(object):
     def __init__(self, action_bound, max_sigma=1.0, min_sigma=1.0, decay_period=1000000):
         self.low  = action_bound[0]

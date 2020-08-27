@@ -38,7 +38,7 @@ REPLAY_SIZE = 100000
 SEED = 123456
 
 exploration_noise = 0.1 
-TAU = 0.005              # target policy update parameter (1-tau)
+TAU = 0.005                 # target policy update parameter
 policy_noise = 0.2          # target policy smoothing noise
 noise_clip = 0.5
 policy_delay = 2            # delayed policy updates parameter
@@ -69,11 +69,13 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
         #reset
         env.reset_pose()
 
-        env.generate_goal_point()
         terminal = False
         ep_reward = 0
         step = 1
-
+        
+        # generate_goal
+        env.generate_goal_point()
+        
         # get_state
         obs = env.get_laser_observation()
         obs_stack = deque([obs, obs, obs])
@@ -92,10 +94,11 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             mean, action = select_action(env=env, state_list=state_list,
                                                          actor=actor, action_bound=action_bound)
 
+            # exploration
             a = noise.get_action(mean, step)
+            
             '''
             a = a + np.random.normal(0, exploration_noise, size=(1,2)) #action size check
-            
             a = a.clip(action_bound[0], action_bound[1])
             '''
 
@@ -140,25 +143,29 @@ def run(comm, env, policy, policy_path, action_bound, optimizer):
             state_next_list = comm.gather(state_next, root=0)
     
 
-            ## training
+          
             #-------------------------------------------------------------------------
+            ## save memory (replay_memory)
             if env.index == 0:
                 replay_memory.push(state[0], state[1],state[2], a, r_list, state_next[0], state_next[1], state_next[2], terminal_list)
                 
             step += 1
             state = state_next
 
-    
+        ## training 
+        #------------------------------------------------------------------------------ 
         if env.index == 0:
             policy_list = [actor, actor_target, critic_1, critic_1_target, critic_2, critic_2_target]
             optimizer_list = [actor_opt, critic_1_opt, critic_2_opt]
 
             if len(replay_memory) > BATCH_SIZE:
+                # update policy
                 td3_update_stage(policy=policy_list, optimizer=optimizer_list, batch_size=BATCH_SIZE, memory=replay_memory, epoch = step, 
                                         replay_size=REPLAY_SIZE, gamma=GAMMA, num_step=BATCH_SIZE, num_env=NUM_ENV, frames=LASER_HIST, 
                                         obs_size=OBS_SIZE, act_size=ACT_SIZE, tau=TAU, policy_noise=policy_noise, noise_clip=noise_clip, policy_delay=policy_delay)
                 global_update += 1
 
+        # save policy
         if env.index == 0:
             if global_update != 0 and global_update % 20 == 0:
                 torch.save(actor.state_dict(), policy_path + '/actor_{}'.format(global_update))
@@ -283,7 +290,6 @@ if __name__ == '__main__':
             logger.info('######Critic_1 Start Training########')
             logger.info('#####################################')
 
-        
         file = policy_path + '/stage1_2.pth'
         if os.path.exists(file):
             logger.info('####################################')

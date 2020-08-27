@@ -2,6 +2,9 @@ import random
 import numpy as np
 
 class ReplayMemory:
+    '''
+    current lidar(t-2, t-1, t)_data, current goal(x,y) data, current speed(v_x, v_y) data, action, reward, next lidar(t-2, t-1, t)_data, next goal(x,y) data, next speed(v_x, v_y) data, terminate data
+    '''
     def __init__(self, capacity, seed):
         random.seed(seed)
         self.capacity = capacity

@@ -19,7 +19,8 @@ ppo_file_handler = logging.FileHandler(ppo_file, mode='a')
 ppo_file_handler.setLevel(logging.INFO)
 logger_ppo.addHandler(ppo_file_handler)
 
-
+## transform_buffer
+#-------------------------------------------------------------------------------
 def transform_buffer(buff):
     s_batch, goal_batch, speed_batch, a_batch, r_batch, d_batch, l_batch, \
     v_batch = [], [], [], [], [], [], [], []
@@ -56,7 +57,13 @@ def transform_buffer(buff):
 
     return s_batch, goal_batch, speed_batch, a_batch, r_batch, d_batch, l_batch, v_batch
 
+
+## generate_action
+#-------------------------------------------------------------------------------
 def generate_action(env, state_list, policy, action_bound):
+"""
+    returns action, log_action_prob, scaled_action(cliped action)
+"""
     if env.index == 0:
         s_list, goal_list, speed_list = [], [], []
         for i in state_list:
@@ -78,14 +85,19 @@ def generate_action(env, state_list, policy, action_bound):
         a, logprob = a.data.cpu().numpy(), logprob.data.cpu().numpy()
         scaled_action = np.clip(a, a_min=action_bound[0], a_max=action_bound[1])
     else:
-        v = None
         a = None
         scaled_action = None
         logprob = None
 
     return a, logprob, scaled_action
 
+
+## generate_value
+#-------------------------------------------------------------------------------
 def generate_value(env, state_list, value):
+"""
+    returns value estimate
+"""
     if env.index == 0:
         s_list, goal_list, speed_list = [], [], []
         for i in state_list:
@@ -110,6 +122,9 @@ def generate_value(env, state_list, value):
         
     return v
 
+
+## generate_action for test
+#-------------------------------------------------------------------------------
 def generate_action_no_sampling(env, state_list, policy, action_bound):
     if env.index == 0:
         s_list, goal_list, speed_list = [], [], []

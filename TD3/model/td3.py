@@ -18,8 +18,11 @@ ppo_file_handler = logging.FileHandler(ppo_file, mode='a')
 ppo_file_handler.setLevel(logging.INFO)
 logger_ppo.addHandler(ppo_file_handler)
 
-
+## Not used
 def generate_action(env, state_list, actor, action_bound):
+    """
+        returns action, log_action_prob, scaled_action(cliped action)
+    """
     if env.index == 0:
         s_list, goal_list, speed_list = [], [], []
         for i in state_list:
@@ -47,8 +50,12 @@ def generate_action(env, state_list, actor, action_bound):
 
     return a, logprob, scaled_action
 
-
+## get action 
 def select_action(env, state_list, actor, action_bound):
+    '''
+        return mean(sigmoid(v), tanh(w)), scaled_action(cliped action)
+    '''
+
     if env.index == 0:
         s_list, goal_list, speed_list = [], [], []
         for i in state_list:
@@ -112,9 +119,9 @@ def td3_update_stage(policy, optimizer, batch_size, memory, epoch, replay_size, 
         sampled_rewards = Variable(torch.from_numpy(rewards)).float().cuda()
         sampled_masks = Variable(torch.from_numpy(masks)).float().cuda()
              
-        # Select next action according to target policy
-        sampled_noise = sampled_actions.data.normal_(0, policy_noise).cuda()
-  
+        # Select next action according to target policy used noise
+
+        sampled_noise = sampled_actions.data.normal_(0, policy_noise).cuda()  
         sampled_noise = sampled_noise.clamp(-noise_clip, noise_clip)
 
         _ ,_ ,sampled_n_action = (actor_target(sampled_n_obs, sampled_n_goals, sampled_n_speeds))

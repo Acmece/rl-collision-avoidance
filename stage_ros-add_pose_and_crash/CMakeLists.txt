@@ -40,12 +40,34 @@ if(catkin_EXPORTED_TARGETS)
   add_dependencies(stageros ${catkin_EXPORTED_TARGETS})
 endif()
 
+# Declare a cpp executable
+add_executable(stageros_w src/stageros_w.cpp)
+set(${PROJECT_NAME}_extra_libs "")
+if(UNIX AND NOT APPLE)
+  set(${PROJECT_NAME}_extra_libs dl)
+endif()
+target_link_libraries(stageros_w
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES}
+  ${STAGE_LIBRARIES}
+  ${${PROJECT_NAME}_extra_libs}
+)
+if(catkin_EXPORTED_TARGETS)
+  add_dependencies(stageros_w ${catkin_EXPORTED_TARGETS})
+endif()
+
 ## Install
 
 install(PROGRAMS scripts/upgrade-world.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS stageros
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(TARGETS stageros_w
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

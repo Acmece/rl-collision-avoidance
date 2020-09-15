@@ -74,6 +74,9 @@
 #define POSESTAMPED "cmd_pose_stamped"
 #define IS_CRASHED "is_crashed"
 
+int wander_num;
+
+
 // Our node
 class StageNode
 {
@@ -89,7 +92,7 @@ private:
     std::vector<Stg::ModelCamera *> cameramodels;
     std::vector<Stg::ModelRanger *> lasermodels;
     std::vector<Stg::ModelPosition *> positionmodels;
-
+ 
     //a structure representing a robot inthe simulator
     struct StageRobot
     {
@@ -156,7 +159,7 @@ private:
     std::vector<Stg::Pose> base_last_globalpos;
 
     //collision count
-    int count_collision = 0;
+    int count_collision;
 
 public:
     // Constructor; stage itself needs argc/argv.  fname is the .world file
@@ -191,7 +194,6 @@ public:
 
     // The main simulator object
     Stg::World* world;
-
 };
 
 // since stageros is single-threaded, this is OK. revisit if that changes!
@@ -488,7 +490,55 @@ StageNode::WorldCallback()
         for (size_t r = 0; r < this->positionmodels.size(); r++)
             this->positionmodels[r]->SetSpeed(0.0, 0.0, 0.0);
     }
-       
+    else
+    {
+        for(int i = (positionmodels.size() - wander_num); i < this->positionmodels.size(); i++)
+        {
+            
+            srand(((unsigned int)(this->sim_time.sec + this->sim_time.nsec) % 32767)+ i*5);
+    
+            float v_rspeed = (rand() % 50 + 50) * 0.01;
+            float w_rspeed = (rand() % 20 - 10) * 0.01;
+            
+            this->positionmodels[i]->SetSpeed(v_rspeed, 0.0, w_rspeed);
+            
+            if(this->positionmodels[i]->Stalled())
+            {
+
+                srand(((unsigned int)(this->sim_time.sec + this->sim_time.nsec) % 32767) + i*5);
+
+                Stg::Pose pose_w;
+                float x_rpose = rand() % 14 - 7;
+                float y_rpose = rand() % 14 - 7;
+                float yaw_rpose = ((rand() % 360)*M_PI/180); 
+                float dist = sqrt(pow(x_rpose,2) + pow(y_rpose,2));
+
+                while(dist > 9)
+                {
+                    srand((unsigned int)time(0) + (int)dist);
+                    x_rpose = rand() % 14 - 7;
+                    x_rpose = rand() % 14 - 7;
+                    yaw_rpose = ((rand() % 360)*M_PI/180);
+                    dist = sqrt(pow(x_rpose,2) + pow(y_rpose,2));
+                    
+                }
+
+                pose_w.x = x_rpose;
+                pose_w.y = y_rpose;
+                pose_w.z = 0;
+                pose_w.a = yaw_rpose;
+                #include <unistd.h>
+                this->positionmodels[i]->SetPose(pose_w);
+
+            }
+
+            else
+            {
+                //count_collision = 0;
+            }
+        }
+    }
+    
      
     //loop on the robot models
     for (size_t r = 0; r < this->robotmodels_.size(); ++r)
@@ -814,6 +864,7 @@ main(int argc, char** argv)
 
     ros::init(argc, argv, "stageros");
 
+    int wander_n = 0;
     bool gui = true;
     bool use_model_names = false;
     for(int i=0;i<(argc-1);i++)
@@ -821,10 +872,14 @@ main(int argc, char** argv)
         if(!strcmp(argv[i], "-g"))
             gui = false;
         if(!strcmp(argv[i], "-u"))
-            use_model_names = true;            
+            use_model_names = true;
+        if(!strcmp(argv[i], "-n"))
+            wander_n = atoi(argv[i+1]);
     }
 
     StageNode sn(argc-1,argv,gui,argv[argc-1], use_model_names);
+
+    wander_num = wander_n;
 
     if(sn.SubscribeModels() != 0)
         exit(-1);

@@ -15,6 +15,9 @@ This is a Pytorch implementation of the paper [Towards Optimally Decentralized M
 
 
 ## How to train
+You may start with training in Stage1 and when it is well-trained you can transfer to Stage2 base on the policy model of Stage1, this is exactly what Curriculum Learning means. Training Stage2 from scratch may converge at a lower performance or not even converge.
+Please note that the motivation of training in Stage2 is to generalize the model, which hopefully can work well in real environment.
+
 Please use the `stage_ros-add_pose_and_crash` package instead of the default package provided by ROS.
 ```
 mkdir -p catkin_ws/src
